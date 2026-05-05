@@ -1,0 +1,23 @@
+node_modules
+dist
+coverage
+
+.DS_Store
+.claude
+.pnpm-store
+.turbo
+**/.vite
+*.log
+packages/*/src/*.d.ts
+packages/*/src/*.d.ts.map
+packages/*/src/*.js
+packages/*/src/*.js.map
+packages/*/vitest.config.d.ts
+packages/*/vitest.config.d.ts.map
+packages/*/vitest.config.js
+packages/*/vitest.config.js.map
+
+# Build artifacts emitted by scripts/compile-data.mjs
+packages/*/src/*.generated.ts
+packages/*/data/devices.json
+packages/*/data/media.json

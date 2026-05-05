@@ -1,0 +1,41 @@
+// DYMO LetraTag LT-200B — BLE-only handheld label printer.
+//
+// `headDots: 30` is the contracts-standard "dots that print" value
+// (ysfchn `Canvas.FIXED_EDGE_PIXELS = 30`). The wire-format frames
+// 32 dots per column — the encoder's `y+1` skip leaves the first
+// row blank so 30 of the 32 are addressable. The 32-dot wire frame
+// size is encoded as the `PROTOCOL_HEAD_FRAME` constant in
+// `src/protocol.ts`, not as a registry field — the contracts
+// `PrintEngine` shape rejects driver-specific keys, and the
+// constant suffices because the wire frame is invariant across
+// every LT cassette.
+//
+// UUIDs: driver matches by `be3dd650-` prefix and derives the TX /
+// RX / aux characteristic UUIDs from the matched service tail
+// (DECISIONS.md D4). The full UUIDs stored here are the canonical
+// values from ysfchn / alexhorn.
+{
+  key: 'LT_200B',
+  name: 'LetraTag LT-200B',
+  family: 'letratag',
+  transports: {
+    'bluetooth-gatt': {
+      serviceUuid: 'be3dd650-2b3d-42f1-99c1-f0f749dd0678',
+      txCharacteristicUuid: 'be3dd651-2b3d-42f1-99c1-f0f749dd0678',
+      rxCharacteristicUuid: 'be3dd652-2b3d-42f1-99c1-f0f749dd0678',
+      namePrefix: 'DYMO LT-200B',
+      mtu: 500,
+    },
+  },
+  engines: [
+    {
+      role: 'primary',
+      protocol: 'letratag-bt',
+      dpi: 200,
+      headDots: 30,
+      mediaCompatibility: ['letratag'],
+    },
+  ],
+  hardwareQuirks: 'Lid must be closed and batteries adequately charged before the printer registers a print. Status code 7 (no cassette) is documented but never observed in practice; do not use it for cassette presence detection.',
+  support: { status: 'untested' },
+}

@@ -1,0 +1,5 @@
+**/dist/
+**/coverage/
+**/*.generated.ts
+packages/*/data/devices.json
+packages/*/data/media.json
