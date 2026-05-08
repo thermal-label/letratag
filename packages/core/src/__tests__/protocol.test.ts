@@ -1,5 +1,6 @@
 import { createBitmap } from '@mbtech-nl/bitmap';
 import type { LabelBitmap } from '@mbtech-nl/bitmap';
+import type { PrintEngine } from '@thermal-label/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   BODY_CHUNK,
@@ -77,9 +78,7 @@ describe('header / checksum', () => {
     // header bytes 0..7 = [0xff, 0xf0, 0x12, 0x34, 0xe8, 0x03, 0x00, 0x00]
     // sum = 800 -> 800 & 0xff = 0x20.
     const header = buildHeader(1000);
-    expect(Array.from(header)).toEqual([
-      0xff, 0xf0, 0x12, 0x34, 0xe8, 0x03, 0x00, 0x00, 0x20,
-    ]);
+    expect(Array.from(header)).toEqual([0xff, 0xf0, 0x12, 0x34, 0xe8, 0x03, 0x00, 0x00, 0x20]);
   });
 
   it('header is exactly 9 bytes', () => {
@@ -237,9 +236,7 @@ describe('buildPrintPayload + encodeLabel', () => {
     const bitmap = createBitmap(3, PROTOCOL_HEAD_FRAME);
     const payload = buildPrintPayload(bitmap, undefined, { mediaTypeByte: 0x03 });
     // After START (6 bytes), MEDIA_TYPE (6 bytes) then COPIES.
-    expect(payload.slice(6, 12)).toEqual(
-      new Uint8Array([0x1b, 0x4d, 0x03, 0x00, 0x00, 0x00]),
-    );
+    expect(payload.slice(6, 12)).toEqual(new Uint8Array([0x1b, 0x4d, 0x03, 0x00, 0x00, 0x00]));
     expect(payload[12]).toBe(0x1b); // COPIES
     expect(payload[13]).toBe(0x23);
   });
@@ -274,6 +271,93 @@ describe('buildPrintPayload + encodeLabel', () => {
     // CUT byte should be the suppress byte
     const cutIdx = body.indexOf(0x70);
     expect(body[cutIdx + 1]).toBe(CUT_SUPPRESS);
+  });
+});
+
+describe('printable-area integration', () => {
+  // Plan 08 phase 2: encoder consumes engine.printableArea via
+  // getPrintableArea(). With no engine, or an engine that doesn't
+  // populate `printableArea`, output must be byte-identical to the
+  // pre-Phase-2 encoder. The LT-200B ships with `printableArea`
+  // unset today, so this is the live path.
+
+  const ZERO_ENGINE: PrintEngine = {
+    role: 'primary',
+    protocol: 'letratag-bt',
+    dpi: 200,
+    headDots: 30,
+  };
+
+  it('engine without printableArea is byte-identical to no engine', () => {
+    const bitmap = createBitmap(7, PROTOCOL_HEAD_FRAME);
+    const baseline = buildPrintPayload(bitmap);
+    const withEngine = buildPrintPayload(bitmap, { engine: ZERO_ENGINE });
+    expect(Array.from(withEngine)).toEqual(Array.from(baseline));
+  });
+
+  it('explicitly zero printableArea is byte-identical to no engine', () => {
+    const bitmap = createBitmap(7, PROTOCOL_HEAD_FRAME);
+    const baseline = buildPrintPayload(bitmap);
+    const withZeros = buildPrintPayload(bitmap, {
+      engine: {
+        ...ZERO_ENGINE,
+        printableArea: { leading: 0, trailing: 0, left: 0, right: 0 },
+      },
+    });
+    expect(Array.from(withZeros)).toEqual(Array.from(baseline));
+  });
+
+  it('encodeLabel byte-identical when context omitted vs engine without printableArea', () => {
+    const bitmap = createBitmap(5, PROTOCOL_HEAD_FRAME);
+    setPixel(bitmap, 2, 4);
+    const a = encodeLabel(bitmap);
+    const b = encodeLabel(bitmap, undefined, undefined, { engine: ZERO_ENGINE });
+    expect(a.length).toBe(b.length);
+    for (let i = 0; i < a.length; i += 1) {
+      expect(Array.from(a[i]!)).toEqual(Array.from(b[i]!));
+    }
+  });
+
+  it('non-zero leading dead-zone prepends blank feed columns', () => {
+    // 200 DPI, 1 mm leading -> round(1 * 200 / 25.4) = 8 dots.
+    const bitmap = createBitmap(3, PROTOCOL_HEAD_FRAME);
+    setPixel(bitmap, 0, 0);
+    const payload = buildPrintPayload(bitmap, {
+      engine: {
+        ...ZERO_ENGINE,
+        printableArea: { leading: 1, trailing: 0, left: 0, right: 0 },
+      },
+    });
+    // PRINT_DATA at offset 6 (START) + 3 (COPIES) = 9.
+    // [1B 44 81 02 ...u32(width) ...u32(height) ...image]
+    const widthLE =
+      (payload[9 + 4] ?? 0) |
+      ((payload[9 + 5] ?? 0) << 8) |
+      ((payload[9 + 6] ?? 0) << 16) |
+      ((payload[9 + 7] ?? 0) << 24);
+    expect(widthLE).toBe(3 + 8); // bitmap.widthPx + leadingDots
+
+    // First 8 columns (32 bytes) are leading-pad zeros.
+    const imgStart = 9 + 12;
+    for (let i = 0; i < 8 * 4; i += 1) {
+      expect(payload[imgStart + i] ?? -1).toBe(0);
+    }
+    // Column 8 carries the original column-0 encoding (pixel at y=0
+    // → byte 3, bit 7 = 0x80 in the 4th byte of the column).
+    expect(payload[imgStart + 8 * 4 + 3]).toBe(0x80);
+  });
+
+  it('cross-feed left dead-zone shifts head-row centering', () => {
+    // 200 DPI, 1 mm left -> 8 dots. The 30-row source bitmap
+    // currently centers in 32 rows (topPad=1). With left=1mm (8 dots)
+    // and right=0, reachable=24 rows; 30 source rows clip to 24
+    // and topPad=8.
+    const bitmap = createBitmap(1, 30);
+    setPixel(bitmap, 0, 0);
+    const out = encodeBitmap(bitmap, { left: 8, right: 0 });
+    // Pixel (0,0) lands at protocol y=8 = byte 2 (3 - floor(8/8) = 2),
+    // bit 7 (7 - (8 % 8)) = 0x80.
+    expect(Array.from(out.subarray(0, 4))).toEqual([0x00, 0x00, 0x80, 0x00]);
   });
 });
 

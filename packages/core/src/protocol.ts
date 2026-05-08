@@ -1,4 +1,5 @@
 import type { LabelBitmap } from '@mbtech-nl/bitmap';
+import { getPrintableArea, type MediaDescriptor, type PrintEngine } from '@thermal-label/contracts';
 import type { LetraTagPrintOptions, __DebugEncoderOverrides } from './types.js';
 
 /**
@@ -167,16 +168,35 @@ function writeU32LE(buf: Uint8Array, offset: number, value: number): void {
  * within the 32-row frame by padding `floor((32 - h) / 2)` zero
  * rows on top and `32 - h - top` zero rows on the bottom — the
  * placement that matches the observed wire format.
+ *
+ * **Cross-feed dead-zone shift** — when `crossFeed.left` /
+ * `crossFeed.right` are non-zero (head rows the chassis cannot
+ * print), the centering shifts so the bitmap rows land inside the
+ * reachable subrange `[left, 32 - right)`. With both zero (today's
+ * default until the maintainer benches a measurement), the math
+ * reduces to the centering formula above and output bytes are
+ * unchanged.
  */
-export function encodeBitmap(bitmap: LabelBitmap): Uint8Array {
+export function encodeBitmap(
+  bitmap: LabelBitmap,
+  crossFeed: { left: number; right: number } = { left: 0, right: 0 },
+): Uint8Array {
   const feedCount = bitmap.widthPx;
   const headRows = Math.min(bitmap.heightPx, PROTOCOL_HEAD_FRAME);
   const out = new Uint8Array(4 * feedCount);
 
-  const topPad = Math.floor((PROTOCOL_HEAD_FRAME - headRows) / 2);
+  // Reachable head-row subrange after cross-feed dead-zone is
+  // `[left, PROTOCOL_HEAD_FRAME - right)`. Center the source bitmap
+  // within that subrange. With left=right=0 this reduces to the
+  // existing `floor((32 - h) / 2)` formula.
+  const leftDots = Math.max(0, Math.floor(crossFeed.left));
+  const rightDots = Math.max(0, Math.floor(crossFeed.right));
+  const reachable = Math.max(0, PROTOCOL_HEAD_FRAME - leftDots - rightDots);
+  const fitRows = Math.min(headRows, reachable);
+  const topPad = leftDots + Math.floor((reachable - fitRows) / 2);
 
   for (let x = 0; x < feedCount; x += 1) {
-    for (let y = 0; y < headRows; y += 1) {
+    for (let y = 0; y < fitRows; y += 1) {
       if (!isPixelOn(bitmap, x, y)) continue;
       const yProtocol = y + topPad;
       const byteIndex = 3 - Math.floor(yProtocol / 8);
@@ -231,6 +251,52 @@ export interface PrintPayloadOptions {
    * for all but the last copy.
    */
   cut?: boolean;
+  /**
+   * Engine context — used to resolve the chassis dead-zone via
+   * `getPrintableArea(engine, media)` from `@thermal-label/contracts`.
+   * When omitted (or when the engine has no `printableArea` set),
+   * the encoder pads zero rows / columns and output is byte-identical
+   * to pre-Phase-2.
+   *
+   * Per Plan 08 §6 the LT-200B's `forcedTrailingFeedMm` stays unread
+   * here: the firmware enacts trailing feed via `CUT 0x30`, and the
+   * magnitude is unmeasured. Future bench work populates the engine
+   * field and a follow-up commit consumes it.
+   */
+  engine?: PrintEngine;
+  /**
+   * Resolved media — passed alongside `engine` so `getPrintableArea`
+   * can apply per-roll overrides if any media descriptor ever ships
+   * `printableHorizontalOffsetMm` / `printableVerticalOffsetMm`. None
+   * do today on the LT-200B path; included for shape-parity with the
+   * sister drivers.
+   */
+  media?: MediaDescriptor;
+}
+
+/**
+ * Resolve the chassis dead-zone from `engine` + `media` and convert
+ * each edge from mm (the contracts unit) to dots at `engine.dpi`
+ * (the wire-format unit).
+ *
+ * Returns zero-everywhere when `engine` is undefined or has no
+ * `printableArea` set — the path that keeps Phase-2 output byte-
+ * identical to pre-Phase-2 for every device shipped today.
+ */
+function resolveDeadZoneDots(
+  engine?: PrintEngine,
+  media?: MediaDescriptor,
+): { leading: number; trailing: number; left: number; right: number } {
+  if (!engine) return { leading: 0, trailing: 0, left: 0, right: 0 };
+  const area = getPrintableArea(engine, media);
+  const dpi = engine.dpi;
+  const mmToDots = (mm: number): number => Math.round((mm * dpi) / 25.4);
+  return {
+    leading: mmToDots(area.leading),
+    trailing: mmToDots(area.trailing),
+    left: mmToDots(area.left),
+    right: mmToDots(area.right),
+  };
 }
 
 /**
@@ -248,8 +314,20 @@ export function buildPrintPayload(
   options?: PrintPayloadOptions,
   overrides?: __DebugEncoderOverrides,
 ): Uint8Array {
-  const image = encodeBitmap(bitmap);
-  const feedCount = bitmap.widthPx;
+  // Resolve the chassis dead-zone for this engine/media. With no
+  // engine (or no `printableArea` populated), every edge is zero
+  // and the encoder behaves exactly as Phase-1.
+  const deadZone = resolveDeadZoneDots(options?.engine, options?.media);
+
+  // Cross-feed dead-zone shifts the head-row centering inside
+  // `encodeBitmap`. Leading dead-zone prepends blank feed columns
+  // (4 bytes per column, all-zero) before the encoded bitmap so the
+  // first printable feed-step lands past the head-to-cutter gap.
+  const bodyImage = encodeBitmap(bitmap, { left: deadZone.left, right: deadZone.right });
+  const leadingPadBytes = 4 * deadZone.leading;
+  const image =
+    leadingPadBytes > 0 ? concatBytes(new Uint8Array(leadingPadBytes), bodyImage) : bodyImage;
+  const feedCount = bitmap.widthPx + deadZone.leading;
   const printData = buildPrintData(feedCount, PROTOCOL_HEAD_FRAME, image);
 
   const copies = Math.max(1, options?.copies ?? 1);
@@ -261,6 +339,13 @@ export function buildPrintPayload(
   }
   parts.push(buildNumberOfCopies(copies), printData, buildCut(cutByte), STATUS, END);
   return concat(parts);
+}
+
+function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length + b.length);
+  out.set(a, 0);
+  out.set(b, a.length);
+  return out;
 }
 
 function concat(parts: readonly Uint8Array[]): Uint8Array {
@@ -342,20 +427,25 @@ export function chunkPayload(payload: Uint8Array, isPrint: boolean): Uint8Array[
  * `copies - 1` jobs with `cut: false` followed by one final job
  * with `cut: true`. `encodeLabel` itself produces a single job at a
  * time so callers retain control over per-copy status reads.
+ *
+ * Pass `engine` (and optionally `media`) so the encoder can apply
+ * the chassis dead-zone correction via `getPrintableArea` from
+ * `@thermal-label/contracts`. When omitted, output is byte-identical
+ * to Phase-1 — the path used by every test in this package.
  */
 export function encodeLabel(
   bitmap: LabelBitmap,
   options?: LetraTagPrintOptions,
   overrides?: __DebugEncoderOverrides,
+  context?: { engine?: PrintEngine; media?: MediaDescriptor },
 ): Uint8Array[] {
-  const payload = buildPrintPayload(
-    bitmap,
-    {
-      copies: options?.copies ?? 1,
-      cut: options?.autoCut ?? true,
-    },
-    overrides,
-  );
+  const payloadOptions: PrintPayloadOptions = {
+    copies: options?.copies ?? 1,
+    cut: options?.autoCut ?? true,
+  };
+  if (context?.engine) payloadOptions.engine = context.engine;
+  if (context?.media) payloadOptions.media = context.media;
+  const payload = buildPrintPayload(bitmap, payloadOptions, overrides);
   return chunkPayload(payload, true);
 }
 
@@ -370,4 +460,3 @@ export function encodeSetCassetteType(mediaId: number): Uint8Array[] {
   const payload = concat([START, buildMediaType(mediaId), END]);
   return chunkPayload(payload, false);
 }
-

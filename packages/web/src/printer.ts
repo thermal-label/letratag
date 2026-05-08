@@ -57,7 +57,10 @@ export class LetraTagPrinter implements PrinterAdapter {
   private lastStatus: PrinterStatus = EMPTY_STATUS;
   private lastAdvertising: AdvertisingStatus | null = null;
 
-  constructor(private readonly transport: Transport, model = DEVICES.LT_200B.name) {
+  constructor(
+    private readonly transport: Transport,
+    model = DEVICES.LT_200B.name,
+  ) {
     this.model = model;
   }
 
@@ -83,7 +86,13 @@ export class LetraTagPrinter implements PrinterAdapter {
     const rotate = pickRotation(image, resolved, ROTATE_DIRECTION, options?.rotate);
     const bitmap = renderImage(image, { dither: true, rotate });
 
-    const writes = encodeLabel(bitmap, options);
+    const engine = this.device.engines[0];
+    const writes = encodeLabel(
+      bitmap,
+      options,
+      undefined,
+      engine ? { engine, media: resolved } : { media: resolved },
+    );
     for (const chunk of writes) {
       await this.transport.write(chunk);
       // Yield to the event loop between protocol chunks so the
