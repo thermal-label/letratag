@@ -1,5 +1,9 @@
 export { LetraTagPrinter } from './printer.js';
-export { decodeAdvertisementManufacturerData, requestPrinter } from './discovery.js';
+export {
+  decodeAdvertisementManufacturerData,
+  requestPrinter,
+  requestPrinters,
+} from './discovery.js';
 export type { PairResult, RequestPrinterOptions } from './discovery.js';
 
 export {

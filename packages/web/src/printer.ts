@@ -1,7 +1,6 @@
 import { renderImage, type RawImageData } from '@mbtech-nl/bitmap';
 import {
   pickRotation,
-  type DeviceEntry,
   type MediaDescriptor,
   type PreviewOptions,
   type PreviewResult,
@@ -11,7 +10,6 @@ import {
 } from '@thermal-label/contracts';
 import {
   DEFAULT_MEDIA,
-  DEVICES,
   ROTATE_DIRECTION,
   STATUS_NOTIFICATION_LENGTH,
   advertisingToPrinterStatus,
@@ -19,6 +17,7 @@ import {
   encodeLabel,
   parseStatus,
   type AdvertisingStatus,
+  type LetraTagDevice,
   type LetraTagMedia,
   type LetraTagPrintOptions,
 } from '@thermal-label/letratag-core';
@@ -35,8 +34,10 @@ const EMPTY_STATUS: PrinterStatus = {
 /**
  * `PrinterAdapter` for the LT-200B over Web Bluetooth.
  *
- * Constructed indirectly via `requestPrinter()`; the constructor is
- * exported for tests that need to inject a fake `Transport`.
+ * Constructed indirectly via `requestPrinter()` / `requestPrinters()`;
+ * the constructor is exported so the harness can inject a `MockTransport`
+ * with a real device entry, mirroring the labelmanager-web /
+ * labelwriter-web shape.
  *
  * Two channels of status are wired in:
  *
@@ -51,17 +52,19 @@ const EMPTY_STATUS: PrinterStatus = {
  */
 export class LetraTagPrinter implements PrinterAdapter {
   readonly family = 'letratag';
-  readonly model: string;
-  readonly device: DeviceEntry = DEVICES.LT_200B;
+  readonly device: LetraTagDevice;
 
+  private readonly transport: Transport;
   private lastStatus: PrinterStatus = EMPTY_STATUS;
   private lastAdvertising: AdvertisingStatus | null = null;
 
-  constructor(
-    private readonly transport: Transport,
-    model = DEVICES.LT_200B.name,
-  ) {
-    this.model = model;
+  constructor(device: LetraTagDevice, transport: Transport) {
+    this.device = device;
+    this.transport = transport;
+  }
+
+  get model(): string {
+    return this.device.name;
   }
 
   get connected(): boolean {

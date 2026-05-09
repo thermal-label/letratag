@@ -1,10 +1,6 @@
 import { DEVICES, parseAdvertisingStatus } from '@thermal-label/letratag-core';
 import type { AdvertisingStatus } from '@thermal-label/letratag-core';
-import {
-  TransportClosedError,
-  TransportTimeoutError,
-  type Transport,
-} from '@thermal-label/contracts';
+import { WebBluetoothTransport } from '@thermal-label/transport/web';
 import { LetraTagPrinter } from './printer.js';
 
 const SERVICE_PREFIX = 'be3dd650-';
@@ -51,7 +47,11 @@ export interface RequestPrinterOptions {
  * UUIDs filter the picker, but the actual TX / RX / aux UUIDs are
  * **derived from the observed service UUID's tail** (alexhorn's
  * convention). This tolerates UUID-body variance across firmware
- * revisions or device units.
+ * revisions or device units. `WebBluetoothTransport.request()`
+ * doesn't fit because it asks for characteristics by canonical UUID
+ * before it sees the actual service tail; we do the picker + service
+ * resolution + characteristic derivation here, then wrap via
+ * `WebBluetoothTransport.fromCharacteristics()`.
  *
  * Returns the printer adapter + diagnostic plumbing (full observed
  * UUIDs, link MTU best-effort) so the debug harness can export
@@ -91,8 +91,13 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
   const rxCharacteristic = await matched.getCharacteristic(rxUuid);
   await rxCharacteristic.startNotifications();
 
-  const transport = new BleTransport(device, txCharacteristic, rxCharacteristic, ble.mtu ?? 500);
-  const printer = new LetraTagPrinter(transport, device.name ?? DEVICES.LT_200B.name);
+  const transport = WebBluetoothTransport.fromCharacteristics(
+    device,
+    txCharacteristic,
+    rxCharacteristic,
+    ble.mtu ?? 500,
+  );
+  const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
 
   return {
     printer,
@@ -108,6 +113,31 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
     // below instead, which surfaces it explicitly.
     advertisingStatus: null,
   };
+}
+
+/**
+ * Show the browser's Bluetooth picker and return one `PrinterAdapter`
+ * per drivable engine on the selected device, keyed by engine role.
+ *
+ * The LT-200B is single-engine, so this returns a 1-key record keyed
+ * by the device's `engines[0].role` (`'primary'`). Mirrors the
+ * labelmanager / labelwriter `requestPrinters()` factories so harness
+ * adapters can stay symmetric across driver families — the harness
+ * shell consumes the per-engine map directly.
+ *
+ * The `PairResult` plumbing (full observed UUIDs, advertising-data
+ * snapshot) is dropped on this path; callers that need the BLE
+ * diagnostic surface should use `requestPrinter()` instead.
+ */
+export async function requestPrinters(
+  options?: RequestPrinterOptions,
+): Promise<Record<string, LetraTagPrinter>> {
+  const result = await requestPrinter(options);
+  const engine = DEVICES.LT_200B.engines[0];
+  if (!engine) {
+    throw new Error(`Device ${DEVICES.LT_200B.key} has no engines.`);
+  }
+  return { [engine.role]: result.printer };
 }
 
 /**
@@ -128,114 +158,4 @@ export function decodeAdvertisementManufacturerData(
   const view = first.value;
   const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
   return parseAdvertisingStatus(bytes);
-}
-
-/**
- * BLE Transport implementation tailored for the LT-200B. Mirrors
- * `@thermal-label/transport/web`'s `WebBluetoothTransport` but
- * accepts pre-resolved characteristics so the picker / service-
- * prefix matching can stay in this package.
- *
- * The protocol writes payloads in pre-chunked form (each protocol
- * chunk is up to ~501 bytes); the link-layer MTU is left to the
- * browser to honor via its own internal write fragmentation.
- */
-class BleTransport implements Transport {
-  private readonly rxBuffer: number[] = [];
-  private waiter: {
-    resolve: (data: Uint8Array) => void;
-    reject: (err: Error) => void;
-    needed: number;
-    timer: ReturnType<typeof setTimeout> | undefined;
-  } | null = null;
-  private _connected = true;
-
-  private readonly onValueChanged = (event: Event): void => {
-    const target = event.target as BluetoothRemoteGATTCharacteristic;
-    const view = target.value;
-    if (!view) return;
-    for (let i = 0; i < view.byteLength; i += 1) {
-      this.rxBuffer.push(view.getUint8(i));
-    }
-    this.satisfyWaiter();
-  };
-
-  private readonly onDisconnected = (): void => {
-    this._connected = false;
-    const waiter = this.waiter;
-    if (waiter) {
-      this.waiter = null;
-      if (waiter.timer) clearTimeout(waiter.timer);
-      waiter.reject(new TransportClosedError('bluetooth-gatt'));
-    }
-  };
-
-  constructor(
-    private readonly device: BluetoothDevice,
-    private readonly txCharacteristic: BluetoothRemoteGATTCharacteristic,
-    private readonly rxCharacteristic: BluetoothRemoteGATTCharacteristic,
-    private readonly mtu: number,
-  ) {
-    device.addEventListener('gattserverdisconnected', this.onDisconnected);
-    rxCharacteristic.addEventListener('characteristicvaluechanged', this.onValueChanged);
-  }
-
-  get connected(): boolean {
-    return this._connected;
-  }
-
-  async write(data: Uint8Array): Promise<void> {
-    if (!this._connected) throw new TransportClosedError('bluetooth-gatt');
-    for (let offset = 0; offset < data.length; offset += this.mtu) {
-      const chunk = data.subarray(offset, offset + this.mtu);
-      await this.txCharacteristic.writeValueWithoutResponse(chunk);
-      if (offset + this.mtu < data.length) {
-        await new Promise<void>(resolve => setTimeout(resolve, 0));
-      }
-    }
-  }
-
-  async read(length: number, timeout?: number): Promise<Uint8Array> {
-    if (!this._connected) throw new TransportClosedError('bluetooth-gatt');
-    if (this.rxBuffer.length >= length) return this.drainBuffer(length);
-    return new Promise<Uint8Array>((resolve, reject) => {
-      const timer =
-        timeout === undefined
-          ? undefined
-          : setTimeout(() => {
-              if (this.waiter?.timer === timer) this.waiter = null;
-              reject(new TransportTimeoutError('bluetooth-gatt', timeout));
-            }, timeout);
-      this.waiter = { resolve, reject, needed: length, timer };
-    });
-  }
-
-  async close(): Promise<void> {
-    if (!this._connected) return;
-    this._connected = false;
-    this.rxCharacteristic.removeEventListener('characteristicvaluechanged', this.onValueChanged);
-    this.device.removeEventListener('gattserverdisconnected', this.onDisconnected);
-    try {
-      await this.rxCharacteristic.stopNotifications();
-    } catch {
-      // Stopping notifications can fail if the device disconnected first.
-    }
-    if (this.device.gatt?.connected) this.device.gatt.disconnect();
-  }
-
-  private drainBuffer(length: number): Uint8Array {
-    const out = new Uint8Array(length);
-    for (let i = 0; i < length; i += 1) out[i] = this.rxBuffer[i] ?? 0;
-    this.rxBuffer.splice(0, length);
-    return out;
-  }
-
-  private satisfyWaiter(): void {
-    const waiter = this.waiter;
-    if (!waiter) return;
-    if (this.rxBuffer.length < waiter.needed) return;
-    this.waiter = null;
-    if (waiter.timer) clearTimeout(waiter.timer);
-    waiter.resolve(this.drainBuffer(waiter.needed));
-  }
 }

@@ -6,6 +6,7 @@ settings:
 
 overrides:
   '@thermal-label/contracts': link:../contracts
+  '@thermal-label/transport': link:../transport
 
 importers:
 
@@ -134,8 +135,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       '@thermal-label/transport':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: link:../../../transport
+        version: link:../../../transport
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.17
@@ -683,18 +684,6 @@ packages:
     resolution: {integrity: sha512-hPt/bgL5cE+Qp+/TPHBqptcAgPzgj46mPcg/16zNUmbQk0j+mOEQV/+Lqu8QRtDV3Ek95Q6FeFITpuhl6OTsAA==}
     cpu: [x64]
     os: [win32]
-
-  '@thermal-label/transport@0.5.0':
-    resolution: {integrity: sha512-kHdVlNbMfxv4hLGZPCHKNTrKsjj6R0u29V0DQn0hFgwIZl0Xm4eWn01JeGhRr7Gv6dLHgc0TRINkp/3BM3bq6Q==}
-    engines: {node: '>=20.9.0'}
-    peerDependencies:
-      serialport: '>=12.0.0'
-      usb: '>=2.14.0'
-    peerDependenciesMeta:
-      serialport:
-        optional: true
-      usb:
-        optional: true
 
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
@@ -2831,10 +2820,6 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.60.3':
     optional: true
-
-  '@thermal-label/transport@0.5.0':
-    dependencies:
-      '@thermal-label/contracts': link:../contracts
 
   '@tybys/wasm-util@0.10.2':
     dependencies:

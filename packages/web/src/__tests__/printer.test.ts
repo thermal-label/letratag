@@ -1,5 +1,5 @@
 import { renderImage } from '@mbtech-nl/bitmap';
-import { encodeLabel, LT_PAPER_WHITE, parseStatus } from '@thermal-label/letratag-core';
+import { DEVICES, encodeLabel, LT_PAPER_WHITE, parseStatus } from '@thermal-label/letratag-core';
 import type { Transport } from '@thermal-label/contracts';
 import { describe, expect, it } from 'vitest';
 import { LetraTagPrinter } from '../printer.js';
@@ -48,7 +48,7 @@ describe('LetraTagPrinter (fake transport)', () => {
   it('print() writes encodeLabel output exactly, in order', async () => {
     const transport = new FakeTransport();
     transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00])); // success
-    const printer = new LetraTagPrinter(transport);
+    const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
 
     const image = makeImage(20, 6);
     await printer.print(image, LT_PAPER_WHITE);
@@ -72,7 +72,7 @@ describe('LetraTagPrinter (fake transport)', () => {
   it('parses the post-print status notification', async () => {
     const transport = new FakeTransport();
     transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x03])); // low_battery
-    const printer = new LetraTagPrinter(transport);
+    const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
 
     await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
     const status = await printer.getStatus();
@@ -84,7 +84,7 @@ describe('LetraTagPrinter (fake transport)', () => {
   it('throws on a fatal status', async () => {
     const transport = new FakeTransport();
     transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x06])); // battery_too_low
-    const printer = new LetraTagPrinter(transport);
+    const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
 
     await expect(printer.print(makeImage(10, 6), LT_PAPER_WHITE)).rejects.toThrow(
       /Battery too low/,
@@ -93,7 +93,7 @@ describe('LetraTagPrinter (fake transport)', () => {
 
   it('createPreview returns assumed=true when media omitted', async () => {
     const transport = new FakeTransport();
-    const printer = new LetraTagPrinter(transport);
+    const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
     const preview = await printer.createPreview(makeImage(10, 6));
     expect(preview.assumed).toBe(true);
     expect(preview.planes.length).toBe(1);
@@ -101,7 +101,7 @@ describe('LetraTagPrinter (fake transport)', () => {
 
   it('getStatus prefers the advertising-data snapshot when set', async () => {
     const transport = new FakeTransport();
-    const printer = new LetraTagPrinter(transport);
+    const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
     // 12mm cassette, full battery, no errors, idle
     printer.setAdvertisingStatus({
       revision: 1,
