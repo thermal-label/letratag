@@ -3,3 +3,6 @@
 **/*.generated.ts
 packages/*/data/devices.json
 packages/*/data/media.json
+
+pnpm-lock.yaml
+**/pnpm-lock.yaml
