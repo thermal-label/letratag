@@ -16,8 +16,8 @@ reverse-engineering work — `ysfchn/dymo-bluetooth` and
 LT-200B and a host, and (c) interoperability analysis of the
 LetraTag Connect Android app limited to the byte sequences it emits
 over BLE and consumes from advertising data. See
-[`INTEROPERABILITY.md`](../../INTEROPERABILITY.md) at the repo root
-for full sourcing, scope, and legal posture. This page is the
+[`INTEROPERABILITY.md`](https://github.com/thermal-label/letratag/blob/main/INTEROPERABILITY.md)
+at the repo root for full sourcing, scope, and legal posture. This page is the
 authoritative reference for the driver in this repo; the encoder in
 `packages/core/src/protocol.ts` is implemented against it.
 :::
@@ -51,9 +51,11 @@ classes are confirmed.
 
 ::: tip Related pages
 
-- [Core](../core) — the TypeScript API.
-- [Hardware](../hardware) — supported devices, BLE service UUIDs.
-- [Media](../media) — supported LetraTag (LT) cassette catalogue.
+- [Getting started](../getting-started) — install the package and run
+  a first print.
+- [Source on GitHub](https://github.com/thermal-label/letratag) —
+  `packages/core/src/` implements this protocol; `packages/debug` is
+  the verification harness referenced below.
   :::
 
 ## Models and engines
@@ -88,8 +90,14 @@ The values below are the canonical advertised UUIDs:
 | `printReplyUUID`       (RX) | `be3dd652-…`   | notify                 |
 | `printShortCommandUUID`     | `be3dd653-…`   | write-without-response |
 
-The advertised device name is `DYMO LT-200B` (used as the Web
-Bluetooth `namePrefix` filter).
+The advertised device name is `Letratag <12-hex-MAC-suffix>` —
+e.g. `Letratag 10B41D8220FE`. Prior public reverse-engineering work
+(ysfchn / alexhorn) recorded the prefix as `DYMO LT-200B`, but the
+firmware revisions observed on the bench in 2026 advertise the
+`Letratag ` prefix instead. The driver filters Web Bluetooth's
+`requestDevice` by `namePrefix: 'Letratag '` (trailing space anchors
+the match) plus the `be3dd650-…` service UUID; the older prefix is
+left as a fallback for any unit that still advertises it.
 
 The `printShortCommandUUID` characteristic is used for out-of-band
 commands that don't go through the chunked-print pipeline — most
@@ -115,14 +123,30 @@ all share that tail.
 
 ### MTU and chunking
 
-Each TX write carries at most **501 bytes** (1-byte chunk index +
-500 bytes of payload). 500 is the **protocol** chunk size — it is
-not the BLE link MTU, which is whatever the OS / browser negotiates
-(typically 23–247 bytes, with the runtime auto-fragmenting writes
-that exceed the link MTU). Every write to TX uses
-**write-without-response**, so the host does not receive ack frames
-between writes; ordering is preserved by the sequence index byte
-that prefixes each chunk.
+Two ceilings apply to every TX write:
+
+- The **protocol** chunk size is **500 body bytes** (501 on the wire
+  once the 1-byte chunk-index prefix is added). This is the upper
+  bound documented in the prior public reverse-engineering work and
+  is enforced by the encoder.
+- The **BLE link** MTU is whatever the OS / browser negotiates. On
+  the LT-200B's BLE 4.2 stack, ATT MTU 247 (244-byte payload) is the
+  modern conservative default; older stacks negotiate as low as 23.
+
+Bench-confirmed 2026-05-10: writes that exceed the negotiated link
+MTU fail on the first chunk of a multi-chunk job with
+"GATT operation failed for unknown reason" — Chrome on Linux does
+**not** auto-fragment `writeValueWithoutResponse` writes beyond the
+link MTU. The driver therefore uses the registry's
+`bluetooth-gatt.mtu` (currently `247`) as the effective per-chunk
+ceiling: `effectiveChunkBytes = min(500, mtu - 1)`. The `-1` reserves
+one byte for the chunk-index prefix that fronts every BLE write.
+Single-chunk payloads happened to fit under 244 bytes, so the bug
+stayed dormant until the first multi-chunk content went on the wire.
+
+Every write to TX uses **write-without-response**, so the host does
+not receive ack frames between writes; ordering is preserved by the
+sequence index byte that prefixes each chunk.
 
 ## Status
 
@@ -247,26 +271,26 @@ FF F0 12 34 <length0..3> <checksum>
 | Length   |  4 LE | Body length in bytes (excludes header and chunk index bytes). |
 | Checksum |     1 | `(sum of preceding 8 bytes) & 0xFF`                           |
 
-## Directives
+## Directive vocabulary
 
 The protocol's directive opcode is the second byte after a `0x1B`
 (`ESC`) prefix. Nine directives are defined; six are emitted in the
 normal print flow, two are auxiliary, and one (`PRINT_DENSITY`) is
 declared but never emitted.
 
-| Symbol             | ASCII | Hex    | Length         | Bytes                                                                                        |
-| ------------------ | ----- | -----: | -------------: | -------------------------------------------------------------------------------------------- |
-| `START`            | `s`   | `0x73` | 6              | `[1B 73, ...4-byte jobId]`                                                                   |
-| `NUMBER_OF_COPIES` | `#`   | `0x23` | 3              | `[1B 23, N]`                                                                                 |
-| `PRINT_DATA`       | `D`   | `0x44` | 12 + image     | `[1B 44, bpp, align, ...u32le(w), ...u32le(h), ...image]`                                    |
-| `CUT`              | `p`   | `0x70` | 3              | `[1B 70, cmd]` (`0x30` = cut, `0x31` = suppress)                                             |
-| `FORM_FEED`        | `E`   | `0x45` | 2              | `[1B 45]`                                                                                    |
-| `STATUS`           | `A`   | `0x41` | 2              | `[1B 41]`                                                                                    |
-| `END`              | `Q`   | `0x51` | 2              | `[1B 51]`                                                                                    |
-| `MEDIA_TYPE`       | `M`   | `0x4D` | 6              | `[1B 4D, mediaId, 00, 00, 00]` — three trailing zero pad bytes are part of the wire format. |
-| `PRINT_DENSITY`    | `C`   | `0x43` | —              | recognised by the printer; not observed on the wire.                                         |
+| Symbol                                                       | ASCII | Hex    | Length     | Bytes                                                                                       |
+| ------------------------------------------------------------ | ----- | -----: | ---------- | ------------------------------------------------------------------------------------------- |
+| [`START`](#start-—-open-job-1b-73-9a-02-00-00)               | `s`   | `0x73` | 6          | `[1B 73, ...4-byte jobId]`                                                                  |
+| [`NUMBER_OF_COPIES`](#number_of_copies-n-—-copy-count-1b-23-n) | `#`   | `0x23` | 3          | `[1B 23, N]`                                                                                |
+| [`PRINT_DATA`](#print_data-bpp-align-w-h-pixels-—-bitmap-1b-44) | `D`   | `0x44` | 12 + image | `[1B 44, bpp, align, ...u32le(w), ...u32le(h), ...image]`                                   |
+| [`CUT`](#cut-command-—-finalize-copy-1b-70-nn)               | `p`   | `0x70` | 3          | `[1B 70, cmd]` (`0x30` = cut, `0x31` = suppress)                                            |
+| [`FORM_FEED`](#form_feed-—-paper-feed-1b-45)                 | `E`   | `0x45` | 2          | `[1B 45]`                                                                                   |
+| [`STATUS`](#status-—-request-result-notification-1b-41)      | `A`   | `0x41` | 2          | `[1B 41]`                                                                                   |
+| [`END`](#end-—-close-job-1b-51)                              | `Q`   | `0x51` | 2          | `[1B 51]`                                                                                   |
+| [`MEDIA_TYPE`](#media_type-id-—-set-cassette-type-1b-4d-nn-00-00-00) | `M` | `0x4D` | 6          | `[1B 4D, mediaId, 00, 00, 00]` — three trailing zero pad bytes are part of the wire format. |
+| [`PRINT_DENSITY`](#print_density-—-declared-not-observed)    | `C`   | `0x43` | —          | recognised by the printer; not observed on the wire.                                        |
 
-### `START` — open job (`1B 73 9A 02 00 00`)
+## `START` — open job (`1B 73 9A 02 00 00`)
 
 ```
 1B 73 9A 02 00 00
@@ -276,7 +300,7 @@ The `9A 02 00 00` tail is the printer's expected "job ID" — a fixed
 constant on every observed job. It is not related to a queue or
 generation counter; emit it verbatim.
 
-### `NUMBER_OF_COPIES <N>` — copy count (`1B 23 N`)
+## `NUMBER_OF_COPIES <N>` — copy count (`1B 23 N`)
 
 ```
 1B 23 <N>
@@ -286,7 +310,7 @@ A 1-byte unsigned copy count, default `1`. Always emitted, even for a
 single-copy job. Position is immediately after `START`, before
 `PRINT_DATA`.
 
-### `PRINT_DATA <bpp> <align> <w> <h> <pixels>` — bitmap (`1B 44 …`)
+## `PRINT_DATA <bpp> <align> <w> <h> <pixels>` — bitmap (`1B 44 …`)
 
 ```
 1B 44 <bpp> <align> <width0..3> <height0..3> <pixel bytes>
@@ -304,7 +328,7 @@ The image bytes encode the head columns in the order the feed
 mechanism advances. Each 4-byte column carries 32 bits — the bit
 packing is described in [Image encoding](#image-encoding).
 
-### `CUT <command>` — finalize copy (`1B 70 nn`)
+## `CUT <command>` — finalize copy (`1B 70 nn`)
 
 ```
 1B 70 <command>
@@ -319,7 +343,19 @@ packing is described in [Image encoding](#image-encoding).
 Sibling devices that lack a cutter substitute `FORM_FEED` here
 instead — that path is not exercised by this driver.
 
-### `STATUS` — request result notification (`1B 41`)
+## `FORM_FEED` — paper feed (`1B 45`)
+
+```
+1B 45
+```
+
+Documented in the protocol vocabulary; **not emitted** on the
+LT-200B (Avatar) path. Sibling LetraTag-family chassis that lack a
+cutter substitute `FORM_FEED` for `CUT` to advance the tape past
+the head at end-of-job; the LT-200B reaches the same physical
+effect by sending `CUT 0x30`.
+
+## `STATUS` — request result notification (`1B 41`)
 
 ```
 1B 41
@@ -329,7 +365,7 @@ Schedules the 3-byte notification described in
 [Status](#status). Always present in a print job, between `CUT` and
 `END`.
 
-### `END` — close job (`1B 51`)
+## `END` — close job (`1B 51`)
 
 ```
 1B 51
@@ -339,7 +375,7 @@ Mandatory trailer. Without it, the printer holds the job in its
 buffer and the next write to TX appends rather than starting a new
 job.
 
-### `MEDIA_TYPE <id>` — set cassette type (`1B 4D nn 00 00 00`)
+## `MEDIA_TYPE <id>` — set cassette type (`1B 4D nn 00 00 00`)
 
 ```
 1B 4D <cassetteId> 00 00 00
@@ -355,6 +391,50 @@ which is used to record the loaded cassette in the printer's
 session state outside a print.
 
 `<cassetteId>` is the 1..5 enum from [Cassette IDs](#cassette-ids).
+
+## `PRINT_DENSITY` — declared, not observed
+
+```
+1B 43 …
+```
+
+Recognised by the printer firmware (carried over from earlier
+LetraTag-family vocabulary) but **not emitted** on any observed
+LT-200B job — the LetraTag Connect app does not send it, and the
+driver does not either. Listed in the [vocabulary
+table](#directive-vocabulary) for completeness; length and payload
+are unknown on this chassis.
+
+## Trailing feed
+
+The LT-200B does not advance enough tape on its own to push the
+printed area past the head-to-cutter gap. The encoder appends
+`engine.forcedTrailingFeedMm` (currently **6 mm**, = 47 zero feed
+columns at 200 dpi) of zero-padded feed columns after the bitmap
+and before the `CUT` directive. Two effects bench-confirmed
+2026-05-10:
+
+1. **Visibility.** Without trailing feed the printed area stays
+   inside the head-to-cutter gap; the user has to manually advance
+   tape with the chassis lever before the print becomes readable.
+   `CUT 0x30` alone does not advance enough tape — contradicting
+   an earlier theory that the firmware enacted trailing feed inside
+   the cut command.
+2. **Tiny-print alternation quirk.** With identical 16-column-T2
+   bytes sent back-to-back and `forcedTrailingFeedMm: 0`, the
+   post-print status code alternated perfectly:
+   `success (0x01) → silent rejection (0x05, head never engaged)
+   → success → silent rejection`, repeating for 8+ consecutive
+   prints. With `forcedTrailingFeedMm: 6` every print succeeds.
+   Wider real content (~30+ feed columns) avoids the alternation
+   even without trailing feed, so the load-bearing dimension is
+   **total feed column count**, not literally "trailing zeros."
+   Trailing feed is one of two ways to clear the firmware state;
+   wider real content is the other.
+
+The 6 mm value is the first tested width that worked; sweeping
+lower values is open work. The driver does not currently expose
+a per-job override.
 
 ## Image encoding
 
@@ -385,7 +465,7 @@ the top and bottom (`top = floor((32 - h) / 2)`,
 `bottom = 32 - h - top`); the firmware does not branch on content
 extent.
 
-### Worked examples
+## Worked examples
 
 ```
 single black pixel at (x=0, y=0)        →  00 00 00 80
@@ -512,8 +592,8 @@ under evaluation are `webbluetooth` (Node-side polyfill), `node-ble`
 ## References
 
 - **Sources, scope, and legal posture** —
-  [`INTEROPERABILITY.md`](../../INTEROPERABILITY.md) at the repo
-  root. Lists the prior public reverse-engineering work this page
+  [`INTEROPERABILITY.md`](https://github.com/thermal-label/letratag/blob/main/INTEROPERABILITY.md)
+  at the repo root. Lists the prior public reverse-engineering work this page
   builds on, the on-the-wire observation that anchors each
   byte-level claim, and the project's posture under EU Directive
   2009/24/EC Article 6 and the US fair-use precedents.
