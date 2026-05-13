@@ -30,12 +30,12 @@ to Phase-1 — the path used by every test in this package.
 
 | Parameter | Type |
 | ------ | ------ |
-| `bitmap` | [`LabelBitmap`](../../letratag-core/interfaces/LabelBitmap.md) |
+| `bitmap` | [`LabelBitmap`](../interfaces/LabelBitmap.md) |
 | `options?` | [`LetraTagPrintOptions`](../interfaces/LetraTagPrintOptions.md) |
-| `overrides?` | [`__DebugEncoderOverrides`](../../letratag-core/debug/interfaces/DebugEncoderOverrides.md) |
-| `context?` | \{ `engine?`: [`PrintEngine`](../../letratag-core/interfaces/PrintEngine.md); `media?`: [`MediaDescriptor`](../../letratag-core/interfaces/MediaDescriptor.md); `mtu?`: `number`; \} |
-| `context.engine?` | [`PrintEngine`](../../letratag-core/interfaces/PrintEngine.md) |
-| `context.media?` | [`MediaDescriptor`](../../letratag-core/interfaces/MediaDescriptor.md) |
+| `overrides?` | `__DebugEncoderOverrides` |
+| `context?` | \{ `engine?`: [`PrintEngine`](../interfaces/PrintEngine.md); `media?`: [`MediaDescriptor`](../interfaces/MediaDescriptor.md); `mtu?`: `number`; \} |
+| `context.engine?` | [`PrintEngine`](../interfaces/PrintEngine.md) |
+| `context.media?` | [`MediaDescriptor`](../interfaces/MediaDescriptor.md) |
 | `context.mtu?` | `number` |
 
 ## Returns

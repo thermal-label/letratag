@@ -1,8 +1,8 @@
-# Documentation
+# letratag
 
-## Packages
+## Modules
 
-| Package | Description |
+| Module | Description |
 | ------ | ------ |
-| [@thermal-label/letratag-core](@thermal-label/letratag-core/README.md) | Core protocol, status parser, and media registry for the DYMO LetraTag LT-200B |
-| [@thermal-label/letratag-web](@thermal-label/letratag-web/README.md) | Web Bluetooth driver for the DYMO LetraTag LT-200B |
+| [core/src](core/src/README.md) | - |
+| [web/src](web/src/README.md) | - |

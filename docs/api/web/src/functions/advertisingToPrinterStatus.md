@@ -16,4 +16,4 @@ Convenience: convert an `AdvertisingStatus` into a contracts
 
 ## Returns
 
-[`PrinterStatus`](../interfaces/PrinterStatus.md)
+[`PrinterStatus`](../../../core/src/interfaces/PrinterStatus.md)

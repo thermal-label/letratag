@@ -60,13 +60,13 @@ const m: MediaDescriptor = {
 ## Extended by
 
 - [`LetraTagMedia`](LetraTagMedia.md)
-- [`LetraTagMedia`](../../letratag-web/interfaces/LetraTagMedia.md)
+- [`LetraTagMedia`](../../../web/src/interfaces/LetraTagMedia.md)
 
 ## Properties
 
 | Property | Modifier | Type | Description |
 | ------ | ------ | ------ | ------ |
-| <a id="property-category"></a> `category?` | `public` | \| `"tape"` \| `"cartridge"` \| `"address"` \| `"shipping"` \| `"file-folder"` \| `"multi-purpose"` \| `"name-badge"` \| `"barcode"` \| `"price-tag"` \| `"continuous"` \| `"die-cut"` | Coarse category for grouping in docs and UI. Driver-extensible; common values listed for cross-driver consistency. |
+| <a id="property-category"></a> `category?` | `public` | \| `"address"` \| `"shipping"` \| `"file-folder"` \| `"multi-purpose"` \| `"name-badge"` \| `"barcode"` \| `"price-tag"` \| `"continuous"` \| `"cartridge"` \| `"tape"` \| `"die-cut"` | Coarse category for grouping in docs and UI. Driver-extensible; common values listed for cross-driver consistency. |
 | <a id="property-cornerradiusmm"></a> `cornerRadiusMm?` | `public` | `number` | Corner radius (mm) of die-cut labels with rounded corners. Only meaningful for die-cut media. Undefined or `0` = sharp corners. For round labels, set this to `widthMm / 2` so the rounded rectangle degenerates to a circle. |
 | <a id="property-defaultorientation"></a> `defaultOrientation?` | `public` | `"horizontal"` \| `"vertical"` | Hint for how the user is expected to author content for this media. Drives the auto-rotate decision in `print()`: - `'horizontal'` — long axis horizontal when reading (landscape). Driver rotates 90° in the family-specific direction when input matches landscape dimensions. Examples: 89×28 mm address labels, 12 mm narrow tape with a name on it. - `'vertical'` — long axis vertical when reading (portrait). Driver passes through. - `undefined` — driver passes through. Recommended for continuous wide tape (62 mm) where users may go either way. |
 | <a id="property-heightmm"></a> `heightMm?` | `public` | `number` | Physical height/length in mm. - Undefined = continuous (variable length; printer cuts to content). - A number = fixed length (die-cut labels, tape segments). |

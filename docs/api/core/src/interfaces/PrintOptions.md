@@ -8,7 +8,7 @@ accepts any superset wherever `PrintOptions` is consumed.
 ## Extended by
 
 - [`LetraTagPrintOptions`](LetraTagPrintOptions.md)
-- [`LetraTagPrintOptions`](../../letratag-web/interfaces/LetraTagPrintOptions.md)
+- [`LetraTagPrintOptions`](../../../web/src/interfaces/LetraTagPrintOptions.md)
 
 ## Properties
 

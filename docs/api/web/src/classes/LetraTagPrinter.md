@@ -20,7 +20,7 @@ Two channels of status are wired in:
 
 ## Implements
 
-- [`PrinterAdapter`](../interfaces/PrinterAdapter.md)
+- [`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md)
 
 ## Constructors
 
@@ -35,7 +35,7 @@ new LetraTagPrinter(device: LetraTagDevice, transport: Transport): LetraTagPrint
 | Parameter | Type |
 | ------ | ------ |
 | `device` | [`LetraTagDevice`](../type-aliases/LetraTagDevice.md) |
-| `transport` | [`Transport`](../interfaces/Transport.md) |
+| `transport` | [`Transport`](../../../core/src/interfaces/Transport.md) |
 
 #### Returns
 
@@ -57,7 +57,7 @@ raw TCP connection to a known IP).
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`device`](../interfaces/PrinterAdapter.md#property-device)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`device`](../../../core/src/interfaces/PrinterAdapter.md#property-device)
 
 ***
 
@@ -71,7 +71,7 @@ Driver family identifier, e.g. `'brother-ql'` or `'labelwriter'`.
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`family`](../interfaces/PrinterAdapter.md#property-family)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`family`](../../../core/src/interfaces/PrinterAdapter.md#property-family)
 
 ## Accessors
 
@@ -93,7 +93,7 @@ Whether the printer is currently connected.
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`connected`](../interfaces/PrinterAdapter.md#property-connected)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`connected`](../../../core/src/interfaces/PrinterAdapter.md#property-connected)
 
 ***
 
@@ -115,7 +115,7 @@ Human-readable model name from the driver's device registry.
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`model`](../interfaces/PrinterAdapter.md#property-model)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`model`](../../../core/src/interfaces/PrinterAdapter.md#property-model)
 
 ## Methods
 
@@ -133,7 +133,7 @@ Close the connection. Always call in `finally` blocks.
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`close`](../interfaces/PrinterAdapter.md#close)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`close`](../../../core/src/interfaces/PrinterAdapter.md#close)
 
 ***
 
@@ -160,16 +160,16 @@ For offline preview without a live connection, use the static
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `image` | [`RawImageData`](../../letratag-core/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
-| `options?` | [`PreviewOptions`](../../letratag-core/interfaces/PreviewOptions.md) | — optional media override. If media is omitted, uses detected media from the last `getStatus()`. If no status is available, the driver defaults to single-colour at the printer's native head width and sets `PreviewResult.assumed = true`. |
+| `image` | [`RawImageData`](../../../core/src/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
+| `options?` | [`PreviewOptions`](../../../core/src/interfaces/PreviewOptions.md) | — optional media override. If media is omitted, uses detected media from the last `getStatus()`. If no status is available, the driver defaults to single-colour at the printer's native head width and sets `PreviewResult.assumed = true`. |
 
 #### Returns
 
-`Promise`\<[`PreviewResult`](../../letratag-core/interfaces/PreviewResult.md)\>
+`Promise`\<[`PreviewResult`](../../../core/src/interfaces/PreviewResult.md)\>
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`createPreview`](../interfaces/PrinterAdapter.md#createpreview)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`createPreview`](../../../core/src/interfaces/PrinterAdapter.md#createpreview)
 
 ***
 
@@ -186,11 +186,11 @@ recent post-print notification, then to a default empty status.
 
 #### Returns
 
-`Promise`\<[`PrinterStatus`](../interfaces/PrinterStatus.md)\>
+`Promise`\<[`PrinterStatus`](../../../core/src/interfaces/PrinterStatus.md)\>
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`getStatus`](../interfaces/PrinterAdapter.md#getstatus)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`getStatus`](../../../core/src/interfaces/PrinterAdapter.md#getstatus)
 
 ***
 
@@ -230,8 +230,8 @@ between sequential `print()` calls within the same session).
 
 | Parameter | Type | Description |
 | ------ | ------ | ------ |
-| `image` | [`RawImageData`](../../letratag-core/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
-| `media?` | [`MediaDescriptor`](../../letratag-core/interfaces/MediaDescriptor.md) | — which media to print on. Determines dimensions, margins, and colour mode. If omitted, uses detected media from the last `getStatus()`. |
+| `image` | [`RawImageData`](../../../core/src/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
+| `media?` | [`MediaDescriptor`](../../../core/src/interfaces/MediaDescriptor.md) | — which media to print on. Determines dimensions, margins, and colour mode. If omitted, uses detected media from the last `getStatus()`. |
 | `options?` | [`LetraTagPrintOptions`](../interfaces/LetraTagPrintOptions.md) | — per-call options (copies, density, etc.). |
 
 #### Returns
@@ -244,7 +244,7 @@ MediaNotSpecifiedError if no media is known.
 
 #### Implementation of
 
-[`PrinterAdapter`](../interfaces/PrinterAdapter.md).[`print`](../interfaces/PrinterAdapter.md#print)
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`print`](../../../core/src/interfaces/PrinterAdapter.md#print)
 
 ***
 

@@ -22,7 +22,7 @@ override to poke at C5.
 | ------ | ------ |
 | `bitmap` | [`LabelBitmap`](../interfaces/LabelBitmap.md) |
 | `options?` | `PrintPayloadOptions` |
-| `overrides?` | [`__DebugEncoderOverrides`](../debug/interfaces/DebugEncoderOverrides.md) |
+| `overrides?` | `__DebugEncoderOverrides` |
 
 ## Returns
 

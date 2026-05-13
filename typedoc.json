@@ -1,7 +1,11 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPointStrategy": "packages",
-  "entryPoints": ["packages/core", "packages/web"],
+  "entryPointStrategy": "resolve",
+  "entryPoints": [
+    "packages/core/src/index.ts",
+    "packages/web/src/index.ts"
+  ],
+  "tsconfig": "tsconfig.base.json",
   "out": "docs/api",
   "plugin": ["typedoc-plugin-markdown"],
   "skipErrorChecking": true,

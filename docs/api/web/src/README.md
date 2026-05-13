@@ -1,4 +1,4 @@
-# @thermal-label/letratag-web
+# web/src
 
 ## Classes
 
@@ -14,11 +14,7 @@
 | [LetraTagMedia](interfaces/LetraTagMedia.md) | DYMO LetraTag media descriptor. |
 | [LetraTagPrintOptions](interfaces/LetraTagPrintOptions.md) | Public LetraTag print options. |
 | [PairResult](interfaces/PairResult.md) | Result of a successful pairing — the printer adapter plus the BLE plumbing the debug harness needs (observed full UUIDs, link MTU, raw `BluetoothDevice` for diagnostics export). |
-| [PrinterAdapter](interfaces/PrinterAdapter.md) | High-level printer interface implemented by each driver family. |
-| [PrinterError](interfaces/PrinterError.md) | A single error reported by the printer. |
-| [PrinterStatus](interfaces/PrinterStatus.md) | Runtime status of a printer. |
 | [RequestPrinterOptions](interfaces/RequestPrinterOptions.md) | - |
-| [Transport](interfaces/Transport.md) | A bidirectional byte channel to a printer. |
 
 ## Type Aliases
 
@@ -53,3 +49,27 @@
 | [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
 | [requestPrinter](functions/requestPrinter.md) | Open the browser BLE picker, pair with an LT-200B, and resolve the GATT service / characteristics. |
 | [requestPrinters](functions/requestPrinters.md) | Show the browser's Bluetooth picker and return one `PrinterAdapter` per drivable engine on the selected device, keyed by engine role. |
+
+## References
+
+### PrinterAdapter
+
+Re-exports [PrinterAdapter](../../core/src/interfaces/PrinterAdapter.md)
+
+***
+
+### PrinterError
+
+Re-exports [PrinterError](../../core/src/interfaces/PrinterError.md)
+
+***
+
+### PrinterStatus
+
+Re-exports [PrinterStatus](../../core/src/interfaces/PrinterStatus.md)
+
+***
+
+### Transport
+
+Re-exports [Transport](../../core/src/interfaces/Transport.md)

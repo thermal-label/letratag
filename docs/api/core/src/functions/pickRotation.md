@@ -8,7 +8,7 @@ function pickRotation(
 }, 
    media: MediaDescriptor, 
    familyDirection: RotateDirection, 
-   override?: 0 | "auto" | 90 | 180 | 270): 0 | 90 | 180 | 270;
+   override?: 0 | 90 | 270 | "auto" | 180): 0 | 90 | 180 | 270;
 ```
 
 Pick the rotation value to pass to `renderImage` / `renderMultiPlaneImage`.
@@ -34,7 +34,7 @@ Decision table:
 | `image.width` | `number` | - |
 | `media` | [`MediaDescriptor`](../interfaces/MediaDescriptor.md) | Resolved media descriptor. |
 | `familyDirection?` | [`RotateDirection`](../type-aliases/RotateDirection.md) | Driver family's rotation direction. |
-| `override?` | `0` \| `"auto"` \| `90` \| `180` \| `270` | Caller's per-print override. `'auto'` means "use the heuristic" (same as omitted). |
+| `override?` | `0` \| `90` \| `270` \| `"auto"` \| `180` | Caller's per-print override. `'auto'` means "use the heuristic" (same as omitted). |
 
 ## Returns
 

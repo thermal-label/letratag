@@ -49,4 +49,4 @@ advertising data, not in this frame. `detectedMedia` is always
 
 ## Returns
 
-[`PrinterStatus`](../interfaces/PrinterStatus.md)
+[`PrinterStatus`](../../../core/src/interfaces/PrinterStatus.md)
