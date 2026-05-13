@@ -1,4 +1,15 @@
-import { DEVICES, parseAdvertisingStatus } from '@thermal-label/letratag-core';
+import {
+  DeviceIdentificationRequiredError,
+  type ConnectOptions,
+  type DeviceEntry,
+  type PrinterAdapterMap,
+  type TransportType,
+} from '@thermal-label/contracts';
+import {
+  DEVICE_REGISTRY_DATA,
+  DEVICES,
+  parseAdvertisingStatus,
+} from '@thermal-label/letratag-core';
 import type { AdvertisingStatus } from '@thermal-label/letratag-core';
 import { WebBluetoothTransport } from '@thermal-label/transport/web';
 import { LetraTagPrinter } from './printer.js';
@@ -56,6 +67,12 @@ export interface RequestPrinterOptions {
  * Returns the printer adapter + diagnostic plumbing (full observed
  * UUIDs, link MTU best-effort) so the debug harness can export
  * what's actually on the wire.
+ *
+ * @deprecated For harness use, prefer
+ *   `requestPrinters({ transport: 'bluetooth-gatt' })` — the new
+ *   factory returns a `PrinterAdapterMap` matching the contracts
+ *   shape. `requestPrinter()` is retained as the BLE-debug escape
+ *   hatch (carries observed UUIDs / link MTU for the debug app).
  */
 export async function requestPrinter(options?: RequestPrinterOptions): Promise<PairResult> {
   const ble = DEVICES.LT_200B.transports['bluetooth-gatt'];
@@ -116,29 +133,50 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
 }
 
 /**
- * Show the browser's Bluetooth picker and return one `PrinterAdapter`
- * per drivable engine on the selected device, keyed by engine role.
+ * Unified browser-picker factory.
  *
- * The LT-200B is single-engine, so this returns a 1-key record keyed
- * by the device's `engines[0].role` (`'primary'`). Mirrors the
- * labelmanager / labelwriter `requestPrinters()` factories so harness
- * adapters can stay symmetric across driver families — the harness
- * shell consumes the per-engine map directly.
+ * The LT-200B is single-engine and BLE-GATT-only, so this is a
+ * one-transport dispatch — the `transport` discriminator must be
+ * `'bluetooth-gatt'`. Other values throw. Auto-identifies by service
+ * UUID prefix (DECISIONS.md D4); the LT_200B is the only candidate,
+ * so `deviceKey` is never required.
  *
- * The `PairResult` plumbing (full observed UUIDs, advertising-data
- * snapshot) is dropped on this path; callers that need the BLE
- * diagnostic surface should use `requestPrinter()` instead.
+ * Returns a 1-key `PrinterAdapterMap` keyed by the device's primary
+ * engine role.
  */
-export async function requestPrinters(
-  options?: RequestPrinterOptions,
-): Promise<Record<string, LetraTagPrinter>> {
-  const result = await requestPrinter(options);
+export async function requestPrinters(opts: ConnectOptions): Promise<PrinterAdapterMap> {
+  if (opts.transport !== 'bluetooth-gatt') {
+    throw new Error(
+      `letratag: transport "${opts.transport}" is not supported (LT-200B is BLE-GATT only)`,
+    );
+  }
+  if (opts.deviceKey !== undefined && opts.deviceKey !== DEVICES.LT_200B.key) {
+    throw new Error(
+      `letratag: deviceKey "${opts.deviceKey}" is not in registry (only LT_200B exists)`,
+    );
+  }
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- requestPrinter is the internal picker implementation; deprecation guides harness callers, not the new factory itself
+  const result = await requestPrinter();
   const engine = DEVICES.LT_200B.engines[0];
   if (!engine) {
     throw new Error(`Device ${DEVICES.LT_200B.key} has no engines.`);
   }
   return { [engine.role]: result.printer };
 }
+
+/**
+ * Filter the registry to entries declaring `transport`. Used to
+ * populate `DeviceIdentificationRequiredError.candidates` from the
+ * harness shell.
+ */
+export function devicesForTransport(transport: TransportType): readonly DeviceEntry[] {
+  return DEVICE_REGISTRY_DATA.devices.filter(d => transport in d.transports);
+}
+
+// Surfaces the contracts error type so harness consumers importing
+// from letratag-web don't need a separate @thermal-label/contracts
+// import.
+export { DeviceIdentificationRequiredError };
 
 /**
  * Helper to decode an advertisement event's manufacturer data into a

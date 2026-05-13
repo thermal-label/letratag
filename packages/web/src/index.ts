@@ -1,10 +1,15 @@
 export { LetraTagPrinter } from './printer.js';
+/* eslint-disable @typescript-eslint/no-deprecated -- legacy debug helper re-exported during plan-10 transition */
 export {
   decodeAdvertisementManufacturerData,
+  devicesForTransport,
+  DeviceIdentificationRequiredError,
   requestPrinter,
   requestPrinters,
 } from './discovery.js';
+/* eslint-enable @typescript-eslint/no-deprecated */
 export type { PairResult, RequestPrinterOptions } from './discovery.js';
+export type { ConnectOptions, PrinterAdapterMap } from '@thermal-label/contracts';
 
 export {
   ADVERTISING_STATUS_LENGTH,
