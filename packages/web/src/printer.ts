@@ -15,6 +15,7 @@ import {
   advertisingToPrinterStatus,
   createPreviewOffline,
   encodeLabel,
+  parseAdvertisingStatus,
   parseStatus,
   type AdvertisingStatus,
   type LetraTagDevice,
@@ -57,6 +58,17 @@ export class LetraTagPrinter implements PrinterAdapter {
   private readonly transport: Transport;
   private lastStatus: PrinterStatus = EMPTY_STATUS;
   private lastAdvertising: AdvertisingStatus | null = null;
+  /**
+   * `onStatus` subscribers. Both status sources (post-print
+   * notifications and BLE advertising frames) push into this set —
+   * unifying the two streams behind a single subscription API per
+   * plan 11.
+   */
+  private readonly statusListeners = new Set<(status: PrinterStatus) => void>();
+  /** Bound advertisement handler — captured so removeEventListener works. */
+  private advertisementHandler: ((event: Event) => void) | null = null;
+  /** The device we're watching advertisements on (held for `close()` teardown). */
+  private watchedDevice: BluetoothDevice | null = null;
 
   constructor(device: LetraTagDevice, transport: Transport) {
     this.device = device;
@@ -75,9 +87,18 @@ export class LetraTagPrinter implements PrinterAdapter {
    * Update the printer's known advertising state. Called by the
    * discovery layer with the most recent manufacturer-data payload.
    * Use {@link parseAdvertisingStatus} to construct the argument.
+   *
+   * Per plan 11: also fans out to `onStatus` subscribers so the
+   * harness shell sees cassette / battery / busy changes without
+   * polling. Subscribers receive the
+   * `advertisingToPrinterStatus(adv)` projection — same shape they'd
+   * see from `getStatus()`.
    */
   setAdvertisingStatus(adv: AdvertisingStatus | null): void {
     this.lastAdvertising = adv;
+    if (adv !== null && this.statusListeners.size > 0) {
+      this.notifyListeners(advertisingToPrinterStatus(adv));
+    }
   }
 
   async print(
@@ -115,6 +136,12 @@ export class LetraTagPrinter implements PrinterAdapter {
     try {
       const bytes = await this.transport.read(STATUS_NOTIFICATION_LENGTH, STATUS_READ_TIMEOUT_MS);
       this.lastStatus = parseStatus(bytes);
+      // Fan out to `onStatus` subscribers — post-print notification
+      // is one of two real push sources on this driver (the other
+      // being advertising-data; see `startAdvertisementWatch`).
+      if (this.statusListeners.size > 0) {
+        this.notifyListeners(this.lastStatus);
+      }
     } catch {
       // Timeout / closed transport — leave lastStatus untouched.
     }
@@ -144,7 +171,145 @@ export class LetraTagPrinter implements PrinterAdapter {
     return Promise.resolve(this.lastStatus);
   }
 
+  /**
+   * Subscribe to status updates. Two real push sources feed the
+   * subscriber:
+   *
+   * 1. Post-print notification — the 3-byte `[1B 52 code]` reply on
+   *    the RX characteristic at the end of each print job, parsed
+   *    via {@link parseStatus}.
+   * 2. BLE advertising data — continuous cassette / battery / busy
+   *    / error flags, parsed via {@link parseAdvertisingStatus}. Only
+   *    forwarded when {@link startAdvertisementWatch} has been
+   *    called.
+   *
+   * The current cached status is replayed immediately on subscribe
+   * so the harness shell's status pill resolves quickly without
+   * waiting for the next event. Returns an unsubscribe function.
+   *
+   * Per plan 11 §`onStatus` parity + §Letratag specifics — letratag
+   * has real push so this is not a polling shim.
+   */
+  onStatus(cb: (status: PrinterStatus) => void): () => void {
+    this.statusListeners.add(cb);
+    // Replay current cached status synchronously on subscribe.
+    void Promise.resolve().then(() => {
+      void this.getStatus().then(status => {
+        if (this.statusListeners.has(cb)) cb(status);
+      });
+    });
+    return () => {
+      this.statusListeners.delete(cb);
+    };
+  }
+
+  /**
+   * Subscribe to the LT-200B's BLE advertising packets and fold
+   * each parsed `AdvertisingStatus` into the driver's status state
+   * (via {@link setAdvertisingStatus}). The 3-byte payload covers
+   * cassette presence, battery, busy, and error flags — and the
+   * printer keeps advertising while idle, so the harness gets
+   * continuous status without forcing a print first.
+   *
+   * Feature-checked: Web Bluetooth's `watchAdvertisements` is behind
+   * a Chrome flag in some versions. When the method is missing on
+   * the picked `BluetoothDevice`, this no-ops — `getStatus()` still
+   * works from the post-print notification path, just without the
+   * continuous update.
+   *
+   * Calls `device.watchAdvertisements()` and registers an
+   * `advertisementreceived` listener. Both are torn down on
+   * `close()`.
+   *
+   * @param device — the same `BluetoothDevice` returned by
+   *   `requestPrinter()` / `requestPrinters()`. The driver holds a
+   *   reference for teardown; pass the device once per connect.
+   * @returns `true` if the watch was started, `false` if
+   *   `watchAdvertisements` is unavailable in this browser.
+   */
+  async startAdvertisementWatch(device: BluetoothDevice): Promise<boolean> {
+    // Feature check — Chrome ships `watchAdvertisements` under
+    // chrome://flags/#enable-experimental-web-platform-features in
+    // some versions. Type cast through unknown because the global
+    // BluetoothDevice typings may not declare it.
+    const dev = device as BluetoothDevice & {
+      watchAdvertisements?: () => Promise<void>;
+    };
+    if (typeof dev.watchAdvertisements !== 'function') {
+      return false;
+    }
+    if (this.advertisementHandler !== null) {
+      // Already watching — idempotent.
+      return true;
+    }
+
+    this.advertisementHandler = (event: Event): void => {
+      // BluetoothAdvertisingEvent.manufacturerData is a
+      // `Map<number, DataView>`. Read the first entry's bytes and
+      // parse to an AdvertisingStatus, then fold via the existing
+      // setAdvertisingStatus path (which fans out to subscribers).
+      const advEvent = event as Event & {
+        manufacturerData?: Map<number, DataView>;
+      };
+      const map = advEvent.manufacturerData;
+      if (!map || map.size === 0) return;
+      const first = map.values().next();
+      if (first.done) return;
+      const view = first.value;
+      const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+      const parsed = parseAdvertisingStatus(bytes);
+      if (parsed) this.setAdvertisingStatus(parsed);
+    };
+    device.addEventListener('advertisementreceived', this.advertisementHandler);
+    this.watchedDevice = device;
+    try {
+      await dev.watchAdvertisements();
+    } catch {
+      // `watchAdvertisements` can reject if the browser blocks the
+      // permission or the device disconnected. Roll back the
+      // listener registration so a retry can succeed.
+      device.removeEventListener('advertisementreceived', this.advertisementHandler);
+      this.advertisementHandler = null;
+      this.watchedDevice = null;
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Fan-out helper — clones the listener set before iterating so an
+   * unsubscribe inside a callback doesn't skip siblings.
+   */
+  private notifyListeners(status: PrinterStatus): void {
+    const snapshot = Array.from(this.statusListeners);
+    for (const cb of snapshot) {
+      try {
+        cb(status);
+      } catch {
+        // Listener errors are swallowed — one bad subscriber
+        // shouldn't poison the broadcast.
+      }
+    }
+  }
+
   async close(): Promise<void> {
+    if (this.advertisementHandler !== null && this.watchedDevice !== null) {
+      this.watchedDevice.removeEventListener(
+        'advertisementreceived',
+        this.advertisementHandler,
+      );
+      const dev = this.watchedDevice as BluetoothDevice & {
+        unwatchAdvertisements?: () => void;
+      };
+      try {
+        dev.unwatchAdvertisements?.();
+      } catch {
+        // Best-effort.
+      }
+      this.advertisementHandler = null;
+      this.watchedDevice = null;
+    }
+    this.statusListeners.clear();
     await this.transport.close();
   }
 }

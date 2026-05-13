@@ -130,4 +130,171 @@ describe('LetraTagPrinter (fake transport)', () => {
     }
     expect(parseStatus(new Uint8Array([0x1b, 0x52, 0]))).toBeTruthy();
   });
+
+  describe('onStatus (plan 11)', () => {
+    it('replays the current cached status on subscribe', async () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      // Seed advertising state so getStatus has something non-empty to replay.
+      printer.setAdvertisingStatus({
+        revision: 1,
+        cassetteId: 3,
+        cassetteWidthMm: 12,
+        carbonType: false,
+        busyLocked: false,
+        batteryLevel: 3,
+        charging: false,
+        errors: [],
+        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
+      });
+      let received = 0;
+      const unsub = printer.onStatus(() => {
+        received += 1;
+      });
+      // Replay happens via microtask + Promise — let it land.
+      await new Promise<void>(r => setTimeout(r, 5));
+      unsub();
+      expect(received).toBeGreaterThanOrEqual(1);
+    });
+
+    it('fans out setAdvertisingStatus updates to subscribers', () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      const seen: number[] = [];
+      const unsub = printer.onStatus(s => {
+        // Whatever the projection yields — count invocations.
+        seen.push(s.errors.length);
+      });
+      printer.setAdvertisingStatus({
+        revision: 1,
+        cassetteId: 3,
+        cassetteWidthMm: 12,
+        carbonType: false,
+        busyLocked: false,
+        batteryLevel: 3,
+        charging: false,
+        errors: [],
+        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
+      });
+      printer.setAdvertisingStatus({
+        revision: 1,
+        cassetteId: 0,
+        cassetteWidthMm: 0,
+        carbonType: false,
+        busyLocked: false,
+        batteryLevel: 1,
+        charging: false,
+        errors: [],
+        rawBytes: new Uint8Array([0x10, 0x00, 0x10]),
+      });
+      unsub();
+      // Synchronous fan-out — both setAdvertisingStatus calls fire cb.
+      expect(seen.length).toBe(2);
+    });
+
+    it('post-print notification fans out to subscribers', async () => {
+      const transport = new FakeTransport();
+      // success notification
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      let received = 0;
+      printer.onStatus(() => {
+        received += 1;
+      });
+      const initialReceived = received;
+      await printer.print(makeImage(10, 6), {
+        sku: 'LT-paper-12-white',
+        kind: 'paper',
+        id: 'LT-paper-12-white',
+        name: 'White paper 12 mm',
+        targetModels: ['LT_200B'],
+        tapeWidthMm: 12,
+        material: 'paper',
+        background: 'white',
+        text: 'black',
+      } as never);
+      // Print path triggers the post-print parseStatus → notifyListeners path.
+      expect(received).toBeGreaterThan(initialReceived);
+    });
+
+    it('unsubscribe stops further callbacks', () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      let received = 0;
+      const unsub = printer.onStatus(() => {
+        received += 1;
+      });
+      unsub();
+      printer.setAdvertisingStatus({
+        revision: 1,
+        cassetteId: 3,
+        cassetteWidthMm: 12,
+        carbonType: false,
+        busyLocked: false,
+        batteryLevel: 3,
+        charging: false,
+        errors: [],
+        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
+      });
+      expect(received).toBe(0);
+    });
+  });
+
+  describe('startAdvertisementWatch (plan 11)', () => {
+    it('returns false when the device has no watchAdvertisements support', async () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      // jsdom's BluetoothDevice doesn't ship watchAdvertisements;
+      // a plain object stands in.
+      const fakeDevice = {
+        addEventListener: () => {
+          /* no-op */
+        },
+        removeEventListener: () => {
+          /* no-op */
+        },
+      } as unknown as BluetoothDevice;
+      const result = await printer.startAdvertisementWatch(fakeDevice);
+      expect(result).toBe(false);
+    });
+
+    it('subscribes and forwards parsed advertisements when watchAdvertisements exists', async () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+
+      let advHandler: ((event: Event) => void) | null = null;
+      const fakeDevice = {
+        addEventListener: (type: string, handler: (e: Event) => void) => {
+          if (type === 'advertisementreceived') advHandler = handler;
+        },
+        removeEventListener: () => {
+          /* no-op */
+        },
+        watchAdvertisements: () => Promise.resolve(),
+      } as unknown as BluetoothDevice;
+
+      const result = await printer.startAdvertisementWatch(fakeDevice);
+      expect(result).toBe(true);
+      expect(advHandler).not.toBeNull();
+
+      // Subscribe a status listener and dispatch a synthetic
+      // advertisementreceived event with valid manufacturer-data bytes.
+      const seen: number[] = [];
+      printer.onStatus(s => {
+        seen.push(s.errors.length);
+      });
+      await new Promise<void>(r => setTimeout(r, 5)); // let replay land first
+      const seenAfterReplay = seen.length;
+
+      // 12mm cassette, full battery — same payload as the existing
+      // getStatus-from-advertising test.
+      const bytes = new Uint8Array([0x10, 0x03, 0x30]);
+      const view = new DataView(bytes.buffer);
+      const fakeEvent = {
+        manufacturerData: new Map<number, DataView>([[0x0469, view]]),
+      } as unknown as Event;
+      advHandler!(fakeEvent);
+      expect(seen.length).toBeGreaterThan(seenAfterReplay);
+    });
+  });
 });
