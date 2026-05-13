@@ -14,6 +14,7 @@
     "lint": "eslint packages --no-error-on-unmatched-pattern",
     "format": "prettier --write packages",
     "typecheck": "pnpm -r run typecheck",
+    "docs:api": "typedoc",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish"
@@ -34,6 +35,8 @@
     "eslint": "^9.0.0",
     "json5": "^2.2.3",
     "prettier": "^3.0.0",
+    "typedoc": "^0.28.0",
+    "typedoc-plugin-markdown": "^4.0.0",
     "typescript": "~5.5.0",
     "vitest": "^2.0.0"
   }

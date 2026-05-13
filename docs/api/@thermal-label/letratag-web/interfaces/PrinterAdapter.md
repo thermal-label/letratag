@@ -1,0 +1,165 @@
+# Interface: PrinterAdapter
+
+High-level printer interface implemented by each driver family.
+
+Consumers (CLIs, label-maker apps, ad-hoc scripts) program against
+`PrinterAdapter` and don't need to know which driver is behind it.
+Driver-specific features are available by extending this interface
+in each `*-node` / `*-web` package.
+
+## Properties
+
+| Property | Modifier | Type | Description |
+| ------ | ------ | ------ | ------ |
+| <a id="property-connected"></a> `connected` | `readonly` | `boolean` | Whether the printer is currently connected. |
+| <a id="property-device"></a> `device?` | `readonly` | [`DeviceEntry`](../../letratag-core/interfaces/DeviceEntry.md) | The device entry for the connected printer. Useful for logging, diagnostics, and displaying VID/PID. Undefined if the connection was established without device matching (e.g. a raw TCP connection to a known IP). |
+| <a id="property-family"></a> `family` | `readonly` | `string` | Driver family identifier, e.g. `'brother-ql'` or `'labelwriter'`. |
+| <a id="property-model"></a> `model` | `readonly` | `string` | Human-readable model name from the driver's device registry. |
+
+## Methods
+
+### close()
+
+```ts
+close(): Promise<void>;
+```
+
+Close the connection. Always call in `finally` blocks.
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### createPreview()
+
+```ts
+createPreview(image: RawImageData, options?: PreviewOptions): Promise<PreviewResult>;
+```
+
+Generate a preview showing how this printer would reproduce the
+design on the given media. Returns separated 1bpp planes with
+display colours.
+
+The driver uses its own colour-splitting logic (the same code that
+`print()` uses internally) to produce the planes. The consuming app
+renders whatever planes come back without needing to know the
+splitting rules.
+
+For offline preview without a live connection, use the static
+`createPreviewOffline()` function exported from the driver's
+`*-core` package instead.
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `image` | [`RawImageData`](../../letratag-core/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
+| `options?` | [`PreviewOptions`](../../letratag-core/interfaces/PreviewOptions.md) | — optional media override. If media is omitted, uses detected media from the last `getStatus()`. If no status is available, the driver defaults to single-colour at the printer's native head width and sets `PreviewResult.assumed = true`. |
+
+#### Returns
+
+`Promise`\<[`PreviewResult`](../../letratag-core/interfaces/PreviewResult.md)\>
+
+***
+
+### getStatus()
+
+```ts
+getStatus(): Promise<PrinterStatus>;
+```
+
+Query printer status including detected media.
+
+#### Returns
+
+`Promise`\<[`PrinterStatus`](PrinterStatus.md)\>
+
+***
+
+### onStatus()?
+
+```ts
+optional onStatus(cb: (status: PrinterStatus) => void): () => void;
+```
+
+Subscribe to push-based status updates. Drivers whose printers
+spontaneously emit status frames (e.g. Brother QL over USB pushes
+on lid open/close, media insert, end-of-job, errors) implement
+this; consumers that prefer push semantics call this for instant
+updates instead of polling `getStatus()` on a timer.
+
+Drivers without push capability leave this undefined; consumers
+fall back to periodic `getStatus()` calls.
+
+The driver invokes `cb` for every status frame it receives —
+spontaneous ones AND the response to `getStatus()` — so a
+subscriber sees both unsolicited events and request-driven
+updates. Returns an unsubscribe function.
+
+Implementations are responsible for starting any underlying read
+loop on first subscription (or earlier) and stopping it on
+`close()`. Errors inside the read loop are reported via the
+callback's parent driver layer (e.g. logged); they do not throw
+out of `onStatus` after subscription.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `cb` | (`status`: [`PrinterStatus`](PrinterStatus.md)) => `void` |
+
+#### Returns
+
+() => `void`
+
+***
+
+### print()
+
+```ts
+print(
+   image: RawImageData, 
+   media?: MediaDescriptor, 
+options?: PrintOptions): Promise<void>;
+```
+
+Print from a full-colour RGBA image.
+
+The driver converts to its native format internally:
+
+- Single-colour media (`media.palette` undefined) — threshold/dither
+  RGBA to a single 1bpp plane via `renderImage`.
+- Multi-ink media (`media.palette` defined) — split into planes via
+  `renderMultiPlaneImage` using that palette.
+
+**Orientation:** drivers compute the rotation via `pickRotation`
+(see `./orientation.ts`) — the input image is treated as the
+intended visual; the driver auto-rotates landscape input on media
+tagged `defaultOrientation: 'horizontal'`.
+
+**Multi-ink splitting:** the palette on the media descriptor names
+every ink the driver should classify pixels into; the contracts
+package does not pick "red" or "black" — those facts live with the
+media entry.
+
+**Batch printing:** call `print()` once per label. The driver
+handles job framing internally (e.g. Brother QL page-break commands
+between sequential `print()` calls within the same session).
+
+#### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `image` | [`RawImageData`](../../letratag-core/interfaces/RawImageData.md) | — full RGBA, typically from `designer.render()`. |
+| `media?` | [`MediaDescriptor`](../../letratag-core/interfaces/MediaDescriptor.md) | — which media to print on. Determines dimensions, margins, and colour mode. If omitted, uses detected media from the last `getStatus()`. |
+| `options?` | [`PrintOptions`](../../letratag-core/interfaces/PrintOptions.md) | — per-call options (copies, density, etc.). |
+
+#### Returns
+
+`Promise`\<`void`\>
+
+#### Throws
+
+MediaNotSpecifiedError if no media is known.
