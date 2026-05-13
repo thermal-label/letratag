@@ -213,6 +213,41 @@ documented recovery path for partial-job state.
 
 ---
 
+## Recovery from partial-job state
+
+There is no soft-reset directive on the wire. If the host
+disconnects mid-stream, or a chunk write fails, the recovery is to
+**tear down the GATT session and reconnect** — call
+`printer.close()` followed by a fresh `requestPrinter()`. The
+firmware discards partial bodies on disconnect; the next job prints
+cleanly. The hardware power button on the chassis is a separate hard
+reset.
+
+---
+
+## MTU and write-without-response
+
+Chrome on Linux does **not** auto-fragment
+`writeValueWithoutResponse` writes beyond the negotiated link MTU —
+oversize writes fail the first chunk of a multi-chunk job with
+"GATT operation failed for unknown reason". The driver passes the
+device registry's `bluetooth-gatt.mtu` (currently `247`) through to
+the encoder, which caps each BLE write at `min(500, mtu - 1)` body
+bytes (one byte reserved for the chunk-index prefix). If you call
+the encoder directly, pass an `mtu` override; if you swap in a Node
+BLE transport later, the same ceiling applies. See
+[MTU and chunking](./protocol/letratag-bt#mtu-and-chunking) in the
+protocol reference for the firmware-side constraint.
+
+::: info No Node transport in Phase 1
+Phase 1 is web-only. A future Node path will not use `noble`;
+candidates under evaluation are `webbluetooth` (Node-side polyfill),
+`node-ble` (D-Bus on Linux), or shelling out to
+`bluetoothctl` + `gatttool`.
+:::
+
+---
+
 ## How it works
 
 `requestPrinter()`:

@@ -91,7 +91,12 @@ bench-confirmed failure mode at 500-byte writes.
 
 `parseStatus` decodes the RX notification's result code (`0` =
 success, `5` = silent reject, …; full table in the
-[protocol reference](./protocol/letratag-bt#2.-rx-notification-—-per-job-result)).
+[protocol reference](./protocol/letratag-bt#rx-notification-per-job-result)).
+The encoder collapses the two observed alias codes onto canonical
+results: `1 → SUCCESS` (same semantics as `0`) and `5 → FAILED`
+(same semantics as `2`). Hosts that need the raw firmware code can
+read it from the underlying notification bytes before parsing.
+
 `parseAdvertisingStatus` decodes the broadcast cassette / battery /
 error flags — readable on a passive scan with no pairing required.
 
@@ -99,3 +104,23 @@ For cassette-presence checks, **prefer the advertising-data
 channel**: it reports `cassetteId` directly (1..5 → 6..24 mm), where
 the RX notification's `7 = CASSETTE_MISSING` code is documented but
 never observed in practice (see `DECISIONS.md` for the history).
+
+## `MEDIA_TYPE` is not emitted in the print flow
+
+The encoder does **not** include `MEDIA_TYPE` in the normal print
+payload — the printer prints correctly without it on every observed
+substrate. The `encodeSetCassetteType(mediaId)` helper produces a
+stand-alone `HEADER + START + MEDIA_TYPE + END` payload (23 bytes,
+no chunking) that hosts can write to the short-command characteristic
+to record the loaded cassette in the printer's session state outside
+a print job.
+
+## Trailing feed
+
+The encoder appends `engine.forcedTrailingFeedMm` of zero-padded feed
+columns after the bitmap and before the `CUT` directive. The current
+value is **6 mm** (≈ 47 zero feed columns at 200 dpi) — the first
+tested width that cleared the firmware's
+[tiny-print alternation quirk](./protocol/letratag-bt#tiny-print-alternation-quirk).
+Sweeping lower values is open work; there is no per-job override
+today.
