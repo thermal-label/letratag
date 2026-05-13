@@ -75,18 +75,10 @@ records the loaded cassette in the printer's session state.
 
 ::: warning UUID body is variable, prefix is stable
 The full UUID **body** observed on the wire may differ across
-firmware revisions or device units. A robust implementation:
-
-1. Filters discovery by the canonical `be3dd650-` service UUID
-   prefix.
-2. After connecting, walks the primary services and picks the one
-   whose UUID starts with `be3dd650-`.
-3. Reuses that connected service's tail (everything after the first
-   8 hex digits) when constructing the TX, RX, and short-command
-   UUIDs.
-
-The connected service exposes its tail at runtime, and TX, RX, and
-short-command UUIDs all share that tail.
+firmware revisions or device units. Only the first 8 hex digits
+(`be3dd650-` / `be3dd651-` / `be3dd652-` / `be3dd653-`) are stable;
+the primary service and its three characteristics always share the
+same 28-character tail at runtime.
 :::
 
 ## MTU and chunking
@@ -110,12 +102,7 @@ Every write to TX uses **write-without-response**, so the host does
 not receive ack frames between writes; ordering is preserved by the
 sequence-index byte that prefixes each chunk.
 
-## Status
-
-The printer reports state in two channels — both available, with
-different latency characteristics.
-
-### 1. BLE advertising manufacturer data — continuous
+## Advertising data
 
 The printer continuously broadcasts a 3-byte payload in its BLE
 advertising packets' manufacturer data. **No connection is required
@@ -127,8 +114,7 @@ layout is observable on the wire with any passive scan tool (e.g.
 ```
 byte 0  bits 4-7  revision           (protocol version)
         bits 0-3  reserved
-byte 1  bits 0-3  cassetteId         (1=6mm, 2=9mm, 3=12mm,
-                                      4=19mm, 5=24mm; see below)
+byte 1  bits 0-3  cassetteId         (1..5; see MEDIA_TYPE)
         bit 4     carbonType
         bit 5     busyLocked         (job in progress)
         bits 6-7  spare
@@ -143,53 +129,6 @@ byte 2  bit 0     TAPE_JAM           (error)
 
 The `cassetteId` field in this broadcast is the load-bearing source
 of "is there a cassette in the printer and is it the right size".
-The RX notification's code-7 (`CASSETTE_MISSING`) is documented in
-prior reverse-engineering work but has not been observed in
-practice.
-
-### 2. RX notification — per-job result
-
-The printer emits a **3-byte** notification on the `printReplyUUID`
-characteristic when a job completes (or fails). The notification
-format is:
-
-```
-1B 52 <code>
-```
-
-`0x1B 0x52` is a fixed prefix (`ESC R`); `<code>` is the result.
-
-| Code | Symbol                  | Meaning                                        |
-| ---: | ----------------------- | ---------------------------------------------- |
-|    0 | `SUCCESS`               | Print completed.                               |
-|    1 | `SUCCESS` (variant)     | Observed alongside 0; same semantics.          |
-|    2 | `FAILED`                | Unspecified failure.                           |
-|    3 | `SUCCESS_LOW_BATTERY`   | Printed, but battery is low.                   |
-|    4 | `CANCELLED`             | Job cancelled by the printer.                  |
-|    5 | `FAILED` (variant)      | Observed alongside 2; same semantics.          |
-|    6 | `BATTERY_TOO_LOW`       | Battery too low to drive the head.             |
-|    7 | `CASSETTE_MISSING`      | Documented; not observed in practice.          |
-
-The same characteristic may be polled at ~500 ms intervals during
-printing to drive a progress UI; the final notification on job
-completion arrives on the same channel.
-
-## Cassette IDs
-
-The 4-bit `cassetteId` field in advertising data and the 1-byte
-`MEDIA_TYPE` directive payload share the same enum:
-
-| `cassetteId` | Tape width | DYMO size name |
-| -----------: | ---------: | -------------- |
-|            1 |       6 mm | `SMALL`        |
-|            2 |       9 mm | `MEDIUM`       |
-|            3 |      12 mm | `LARGE`        |
-|            4 |      19 mm | `X_LARGE`      |
-|            5 |      24 mm | `XX_LARGE`     |
-
-LT-200B hardware accepts only 12 mm cassettes and broadcasts
-`cassetteId = 3` when one is loaded. The wider widths are reserved
-for sibling LetraTag-family devices that share this protocol.
 
 ## Print job structure
 
@@ -214,6 +153,18 @@ All multi-byte integers are **little-endian**.
 The header is sent first, by itself, as the very first TX write. Body
 chunks follow as separate writes in order. Total TX writes for a job
 = `1 + ⌈len(body) / 500⌉`.
+
+::: warning Tiny-print alternation quirk (firmware state-toggle)
+With identical short content sent back-to-back and **insufficient
+total feed-column count**, post-print status codes alternate
+perfectly between success and silent rejection — `success → silent
+reject (head never engaged) → success → silent reject` — repeating
+for 8+ consecutive prints. The threshold is empirical (LT-200B clears
+the alternation with ~30+ total feed columns per job, with feed
+columns counting whether they come from bitmap content, leading
+zeros, or trailing zeros). The firmware appears to require a minimum
+number of head-cycles per job to clear an internal state-toggle.
+:::
 
 ### Header (9 bytes)
 
@@ -319,9 +270,35 @@ effect by sending `CUT 0x30`.
 1B 41
 ```
 
-Schedules the 3-byte notification described in
-[RX notification](#2.-rx-notification-—-per-job-result). Always present
-in a print job, between `CUT` and `END`.
+Always present in a print job, between `CUT` and `END`. Schedules a
+**3-byte** notification on the `printReplyUUID` characteristic when
+the job completes (or fails). The notification format is:
+
+```
+1B 52 <code>
+```
+
+`0x1B 0x52` is a fixed prefix (`ESC R`); `<code>` is the result.
+
+| Code | Symbol                  | Meaning                                        |
+| ---: | ----------------------- | ---------------------------------------------- |
+|    0 | `SUCCESS`               | Print completed.                               |
+|    1 | `SUCCESS` (variant)     | Observed alongside 0; same semantics.          |
+|    2 | `FAILED`                | Unspecified failure.                           |
+|    3 | `SUCCESS_LOW_BATTERY`   | Printed, but battery is low.                   |
+|    4 | `CANCELLED`             | Job cancelled by the printer.                  |
+|    5 | `FAILED` (variant)      | Observed alongside 2; same semantics.          |
+|    6 | `BATTERY_TOO_LOW`       | Battery too low to drive the head.             |
+|    7 | `CASSETTE_MISSING`      | Documented; not observed in practice.          |
+
+Codes 1–7 are sourced from `ysfchn/dymo-bluetooth`'s
+`Result.from_bytes` enum and have not been confirmed by direct
+observation; only code 0 has been positively observed in bench
+captures.
+
+The same characteristic may be polled at ~500 ms intervals during
+printing to drive a progress UI; the final notification on job
+completion arrives on the same channel.
 
 ## `END` — close job (`1B 51`)
 
@@ -346,7 +323,20 @@ without this directive — it is optional in the print flow and is
 typically issued out-of-band on the short-command characteristic via
 the [stand-alone set-cassette-type payload](#stand-alone-set-cassette-type-payload).
 
-`<cassetteId>` is the 1..5 enum from [Cassette IDs](#cassette-ids).
+The 1-byte `<cassetteId>` and the 4-bit `cassetteId` field in
+[advertising data](#advertising-data) share the same enum:
+
+| `cassetteId` | Tape width | DYMO size name |
+| -----------: | ---------: | -------------- |
+|            1 |       6 mm | `SMALL`        |
+|            2 |       9 mm | `MEDIUM`       |
+|            3 |      12 mm | `LARGE`        |
+|            4 |      19 mm | `X_LARGE`      |
+|            5 |      24 mm | `XX_LARGE`     |
+
+LT-200B hardware accepts only 12 mm cassettes and broadcasts
+`cassetteId = 3` when one is loaded. The wider widths are reserved
+for sibling LetraTag-family chassis that share this protocol.
 
 ## `PRINT_DENSITY` — declared, not observed
 
@@ -357,31 +347,6 @@ the [stand-alone set-cassette-type payload](#stand-alone-set-cassette-type-paylo
 Recognised by the printer firmware (carried over from earlier
 LetraTag-family vocabulary) but has not been observed on the wire on
 any LT-200B job. Length and payload are unknown on this chassis.
-
-## Trailing feed
-
-The LT-200B does not advance enough tape on its own to push the
-printed area past the head-to-cutter gap. `CUT 0x30` alone does not
-advance enough tape — earlier theories that the firmware enacted
-trailing feed inside the cut command are not supported by bench
-observation. To make the printed area visible past the cutter, the
-host must append zero-padded feed columns after the bitmap and
-before the `CUT` directive.
-
-### Tiny-print alternation quirk
-
-This is a protocol-level behavioural fact: with identical short
-content sent back-to-back (and **no** trailing feed columns), the
-post-print status code alternates perfectly between success and
-silent rejection — `success (0x01) → silent reject (0x05, head never
-engaged) → success → silent reject` — repeating for 8+ consecutive
-prints. Wider content (~30+ feed columns) avoids the alternation
-even without trailing feed.
-
-The load-bearing dimension is **total feed-column count**, not
-literally "trailing zeros": padding the bitmap, prepending leading
-feed columns, or appending trailing feed columns all clear the
-alternation as long as the total per-job feed crosses the threshold.
 
 ## Image encoding
 
@@ -405,26 +370,22 @@ byte_index = 3 - floor(y / 8)
 bit_index  = 7 - (y % 8)
 ```
 
+Cross-check by single-pixel column:
+
+```
+pixel at (x=0, y=0)   →  00 00 00 80   (byte 3, bit 7)
+pixel at (x=0, y=7)   →  00 00 00 01   (byte 3, bit 0)
+pixel at (x=0, y=24)  →  80 00 00 00   (byte 0, bit 7)
+pixel at (x=0, y=31)  →  01 00 00 00   (byte 0, bit 0)
+full-black column     →  FF FF FF FF
+empty column          →  00 00 00 00
+```
+
 Every protocol row is addressable — there is no `y + 1` skip. Labels
 shorter than 32 head rows are centred within the 32-row protocol
 frame by padding with zero-rasterlines at the top and bottom
 (`top = floor((32 - h) / 2)`, `bottom = 32 - h - top`); the firmware
 does not branch on content extent.
-
-## Worked examples
-
-```
-single black pixel at (x=0, y=0)        →  00 00 00 80
-                                              (byte 3, bit 7)
-single black pixel at (x=0, y=7)        →  00 00 00 01
-                                              (byte 3, bit 0)
-single black pixel at (x=0, y=24)       →  80 00 00 00
-                                              (byte 0, bit 7)
-single black pixel at (x=0, y=31)       →  01 00 00 00
-                                              (byte 0, bit 0)
-full-black 32-row column                →  FF FF FF FF
-empty column                            →  00 00 00 00
-```
 
 ::: info On centering and "printable rows"
 The protocol does not distinguish "printable" from "non-printable"
@@ -451,7 +412,8 @@ write:
 `index = 0`; subsequent chunks increment by 1 — **except** that the
 chunk that would receive `index = 27` is given `index = 28` instead,
 and every chunk after it is shifted by one (i.e. for a zero-based
-chunk position `i`, the emitted index is `i + 1` when `i >= 27`).
+chunk position `i`, the emitted index is `i + 1` when `i >= 27`)
+(per `ysfchn/dymo-bluetooth`).
 
 This skip appears on the wire on every observed job, and the
 firmware tolerates (or relies on) it. Realistic LT labels never
