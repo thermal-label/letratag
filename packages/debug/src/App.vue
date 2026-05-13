@@ -3,6 +3,7 @@ import type { LabelBitmap } from '@mbtech-nl/bitmap';
 import { encodeLabel } from '@thermal-label/letratag-core/debug';
 import type { __DebugEncoderOverrides } from '@thermal-label/letratag-core/debug';
 import {
+  DEVICES,
   parseAdvertisingStatus,
   parseStatus,
   STATUS_NOTIFICATION_LENGTH,
@@ -126,7 +127,10 @@ const exportNotes = ref('');
 
 const SERVICE_PREFIX = 'be3dd650-';
 const CANONICAL_SERVICE = 'be3dd650-2b3d-42f1-99c1-f0f749dd0678';
-const CANONICAL_NAME_PREFIX = 'DYMO LT-200B';
+// Real LT-200B advertises as `Letratag <12-hex-MAC-suffix>`
+// (bench-confirmed 2026-05-10). ysfchn / alexhorn upstream documented
+// `DYMO LT-200B` — wrong for this firmware rev.
+const CANONICAL_NAME_PREFIX = 'Letratag ';
 
 async function connect(): Promise<void> {
   isConnecting.value = true;
@@ -277,19 +281,43 @@ async function print(): Promise<void> {
   statusKind.value = 'info';
 
   try {
+    // Pass engine context so the encoder consumes the registry's
+    // forcedTrailingFeedMm (6 mm bench-confirmed). Without this the
+    // print stays inside the head-to-cutter gap and isn't visible.
+    // Also pass the registry's bluetooth-gatt.mtu so the encoder
+    // sizes its protocol chunks to single-BLE-write fits — Chrome
+    // doesn't auto-fragment writeValueWithoutResponse on Linux.
+    const engine = DEVICES.LT_200B.engines[0];
+    const mtu = DEVICES.LT_200B.transports['bluetooth-gatt']?.mtu;
     const writes = encodeLabel(
       bm,
       { copies: copies.value, autoCut: autoCut.value },
       encoderOverrides.value,
+      {
+        ...(engine ? { engine } : {}),
+        ...(mtu !== undefined ? { mtu } : {}),
+      },
     );
     lastWrites.value = writes;
+    // Inter-chunk delay: with `setTimeout(resolve, 0)` (~0 ms) the
+    // browser's BLE write-without-response queue overflows on
+    // multi-chunk payloads (~2 KB / 5 chunks → "GATT operation
+    // failed for unknown reason" on the first chunk). 50 ms gives
+    // the queue time to drain. Tunable; the vendor LetraTag Connect
+    // app delegates to NativeScript's `bluetooth.writeToService`
+    // which handles flow control internally.
+    const INTER_CHUNK_DELAY_MS = 50;
     for (const chunk of writes) {
       appendTrace({ dir: 'tx', hex: bytesToHex(chunk, 64) });
       await c.txCharacteristic.writeValueWithoutResponse(chunk);
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      await new Promise<void>(resolve => setTimeout(resolve, INTER_CHUNK_DELAY_MS));
     }
     statusMessage.value = `Sent ${String(writes.length)} writes; awaiting RX…`;
     statusKind.value = 'ok';
+    // H3 (vendor-style 500ms GATT READ poll on printReplyUUID) was
+    // tested 2026-05-10 and did NOT resolve the alternation — polling
+    // reads alone don't help. Reads also returned spurious stale
+    // bytes (often `1B 52 05`) that mis-parse as failures. Reverted.
   } catch (err) {
     statusMessage.value = err instanceof Error ? err.message : String(err);
     statusKind.value = 'err';

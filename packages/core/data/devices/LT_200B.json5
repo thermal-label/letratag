@@ -23,8 +23,26 @@
       serviceUuid: 'be3dd650-2b3d-42f1-99c1-f0f749dd0678',
       txCharacteristicUuid: 'be3dd651-2b3d-42f1-99c1-f0f749dd0678',
       rxCharacteristicUuid: 'be3dd652-2b3d-42f1-99c1-f0f749dd0678',
-      namePrefix: 'DYMO LT-200B',
-      mtu: 500,
+      // Observed advertised name on real LT-200B hardware:
+      // `Letratag <12-hex-MAC-suffix>` (e.g. `Letratag 10B41D8220FE`).
+      // ysfchn / alexhorn upstream documented `DYMO LT-200B` — wrong
+      // for this firmware rev; the BLE picker filter needs the
+      // observed prefix or the device never shows up. Trailing space
+      // keeps the match anchored so a hypothetical sibling like
+      // `LetratagPro` wouldn't accidentally match.
+      namePrefix: 'Letratag ',
+      // BLE link MTU. Bench-confirmed 2026-05-10: writes >244 bytes
+      // (typical 247-byte ATT MTU minus 3-byte ATT header) fail with
+      // "GATT operation failed for unknown reason" on the first
+      // chunk of a multi-chunk job (Chrome/Linux). 500 was the
+      // earlier doc value (mistakenly conflating the vendor's
+      // protocol-level chunking constant with the BLE link MTU);
+      // single-chunk payloads happened to fit under 244 bytes so
+      // the bug only surfaced once we tried multi-chunk content.
+      // 247 is the conservative-and-safe modern BLE default; the
+      // encoder uses (mtu - 1) for body chunks (1 byte reserved
+      // for the protocol-level chunk-index prefix).
+      mtu: 247,
     },
   },
   engines: [
@@ -34,6 +52,39 @@
       dpi: 200,
       headDots: 30,
       mediaCompatibility: ['letratag'],
+      // Bench-confirmed 2026-05-10. Two effects:
+      //
+      //   (1) Visibility — without trailing feed the printed area
+      //       stays inside the head-to-cutter gap. CUT 0x30 alone
+      //       doesn't advance enough tape (contradicting Plan 08 §6's
+      //       earlier theory that the firmware does it via CUT).
+      //
+      //   (2) Strict 1-5-1-5 status alternation on back-to-back tiny
+      //       prints. Bench-locked: with `forcedTrailingFeedMm: 0`
+      //       and identical 16-column-T2 bytes each time, the post-
+      //       print status code alternated perfectly: success (0x01),
+      //       silent rejection (0x05, head never engaged), repeating
+      //       for 8+ consecutive prints. With `forcedTrailingFeedMm:
+      //       6` (47 trailing zero columns at 200 dpi) all prints
+      //       succeeded. **Wider real content (e.g. "hello", ~30+
+      //       columns) avoids the alternation without any trailing
+      //       feed**, so the load-bearing dimension is *total feed
+      //       column count*, not specifically "trailing zeros."
+      //       Trailing feed is one of two ways to enforce a minimum;
+      //       wider real content is the other.
+      //
+      //       H3 (vendor-style 500ms GATT READ poll on printReplyUUID
+      //       drains a stuck firmware queue) was tested and **does
+      //       not resolve the alternation** — polling reads don't
+      //       help on their own.
+      //
+      // 6 mm = 47 trailing columns at 200 dpi. Sufficient to push any
+      // tiny label past the alternation threshold. A future
+      // refinement could enforce "minimum-total-feed-columns" instead
+      // of always-trailing-feed, costing less tape on wide labels.
+      // Sweep of lower values (1–5 mm) not yet done — 6 mm is just
+      // the first tested value that worked.
+      forcedTrailingFeedMm: 6,
     },
   ],
   hardwareQuirks: 'Lid must be closed and batteries adequately charged before the printer registers a print. Status code 7 (no cassette) is documented but never observed in practice; do not use it for cassette presence detection.',

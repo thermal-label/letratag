@@ -361,6 +361,81 @@ describe('printable-area integration', () => {
   });
 });
 
+describe('forcedTrailingFeedMm integration', () => {
+  // Bench observation 2026-05-10: tiny prints stay inside the
+  // head-to-cutter gap on the LT-200B and aren't visible without
+  // explicit trailing feed. Encoder appends N blank columns where
+  // N = round(forcedTrailingFeedMm * dpi / 25.4).
+
+  const ZERO_ENGINE: PrintEngine = {
+    role: 'primary',
+    protocol: 'letratag-bt',
+    dpi: 200,
+    headDots: 30,
+  };
+
+  it('forcedTrailingFeedMm appends trailing blank columns to PRINT_DATA', () => {
+    // 200 DPI, 6 mm trailing -> round(6 * 200 / 25.4) = 47 dots.
+    const bitmap = createBitmap(3, PROTOCOL_HEAD_FRAME);
+    setPixel(bitmap, 0, 0);
+    const payload = buildPrintPayload(bitmap, {
+      engine: { ...ZERO_ENGINE, forcedTrailingFeedMm: 6 },
+    });
+    // PRINT_DATA at offset 6 (START) + 3 (COPIES) = 9.
+    const widthLE =
+      (payload[9 + 4] ?? 0) |
+      ((payload[9 + 5] ?? 0) << 8) |
+      ((payload[9 + 6] ?? 0) << 16) |
+      ((payload[9 + 7] ?? 0) << 24);
+    expect(widthLE).toBe(3 + 47); // bitmap.widthPx + trailingDots
+
+    // First column carries the original encoding (pixel at y=0
+    // → byte 3, bit 7 = 0x80).
+    const imgStart = 9 + 12;
+    expect(payload[imgStart + 3]).toBe(0x80);
+
+    // Last 47 columns (188 bytes) are trailing-pad zeros.
+    const trailingStart = imgStart + 3 * 4;
+    for (let i = 0; i < 47 * 4; i += 1) {
+      expect(payload[trailingStart + i] ?? -1).toBe(0);
+    }
+  });
+
+  it('engine without forcedTrailingFeedMm is byte-identical to no engine', () => {
+    const bitmap = createBitmap(7, PROTOCOL_HEAD_FRAME);
+    const baseline = buildPrintPayload(bitmap);
+    const withEngine = buildPrintPayload(bitmap, { engine: ZERO_ENGINE });
+    expect(Array.from(withEngine)).toEqual(Array.from(baseline));
+  });
+
+  it('forcedTrailingFeedMm: 0 is byte-identical to absent', () => {
+    const bitmap = createBitmap(7, PROTOCOL_HEAD_FRAME);
+    const baseline = buildPrintPayload(bitmap, { engine: ZERO_ENGINE });
+    const withZero = buildPrintPayload(bitmap, {
+      engine: { ...ZERO_ENGINE, forcedTrailingFeedMm: 0 },
+    });
+    expect(Array.from(withZero)).toEqual(Array.from(baseline));
+  });
+
+  it('leading + trailing combine: width = bitmap + leadingDots + trailingDots', () => {
+    // 200 DPI, 1 mm leading (8 dots) + 6 mm trailing (47 dots).
+    const bitmap = createBitmap(3, PROTOCOL_HEAD_FRAME);
+    const payload = buildPrintPayload(bitmap, {
+      engine: {
+        ...ZERO_ENGINE,
+        printableArea: { leading: 1, trailing: 0, left: 0, right: 0 },
+        forcedTrailingFeedMm: 6,
+      },
+    });
+    const widthLE =
+      (payload[9 + 4] ?? 0) |
+      ((payload[9 + 5] ?? 0) << 8) |
+      ((payload[9 + 6] ?? 0) << 16) |
+      ((payload[9 + 7] ?? 0) << 24);
+    expect(widthLE).toBe(3 + 8 + 47);
+  });
+});
+
 describe('encodeSetCassetteType', () => {
   it('single non-print write: header + START + MEDIA_TYPE + END', () => {
     const writes = encodeSetCassetteType(0x03);

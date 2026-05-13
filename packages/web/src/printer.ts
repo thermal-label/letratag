@@ -90,12 +90,18 @@ export class LetraTagPrinter implements PrinterAdapter {
     const bitmap = renderImage(image, { dither: true, rotate });
 
     const engine = this.device.engines[0];
-    const writes = encodeLabel(
-      bitmap,
-      options,
-      undefined,
-      engine ? { engine, media: resolved } : { media: resolved },
-    );
+    // Pull the BLE link MTU from the registry so the encoder sizes
+    // its chunks to single-write fits. Without this, multi-chunk
+    // payloads exceed the link MTU and Chrome's writeValueWithoutResponse
+    // path doesn't auto-fragment — the first oversized chunk fails
+    // with "GATT operation failed for unknown reason."
+    const mtu = this.device.transports['bluetooth-gatt']?.mtu;
+    const context = {
+      ...(engine ? { engine } : {}),
+      media: resolved,
+      ...(mtu !== undefined ? { mtu } : {}),
+    };
+    const writes = encodeLabel(bitmap, options, undefined, context);
     for (const chunk of writes) {
       await this.transport.write(chunk);
       // Yield to the event loop between protocol chunks so the

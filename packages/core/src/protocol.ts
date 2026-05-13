@@ -1,5 +1,10 @@
 import type { LabelBitmap } from '@mbtech-nl/bitmap';
-import { getPrintableArea, type MediaDescriptor, type PrintEngine } from '@thermal-label/contracts';
+import {
+  getForcedTrailingFeedMm,
+  getPrintableArea,
+  type MediaDescriptor,
+  type PrintEngine,
+} from '@thermal-label/contracts';
 import type { LetraTagPrintOptions, __DebugEncoderOverrides } from './types.js';
 
 /**
@@ -18,10 +23,23 @@ import type { LetraTagPrintOptions, __DebugEncoderOverrides } from './types.js';
 export const MAGIC: readonly [number, number] = [0x12, 0x34];
 
 /**
- * Protocol-level body window. Each chunk write is
- * `[chunkIndex, ...body[i*BODY_CHUNK..(i+1)*BODY_CHUNK)]`, plus the
- * MAGIC trailer on the final chunk. The 500-byte window is the
- * value observed on the wire on every captured job.
+ * Protocol-level upper bound on body bytes per BLE write. Used as
+ * the ceiling when no `mtu` is provided to `chunkPayload`; effective
+ * chunk size is `min(BODY_CHUNK, mtu - 1)`.
+ *
+ * 500 is the value documented in vendor-protocol notes — but on
+ * real BLE links this size exceeds typical MTU (247 ATT, 244-byte
+ * payload), and Chrome doesn't auto-fragment `writeValueWithoutResponse`
+ * writes beyond the negotiated link MTU on every platform.
+ * Bench-confirmed 2026-05-10: 500-byte writes fail on the first
+ * chunk of a multi-chunk job with "GATT operation failed for unknown
+ * reason"; 244-byte writes succeed reliably.
+ *
+ * Always pass the registry's `bluetooth-gatt.mtu` through the
+ * encoder context (`encodeLabel(bitmap, opts, overrides, { mtu })`)
+ * for multi-chunk-safe behaviour. The registry value should track
+ * the BLE link MTU you expect to negotiate (247 = conservative
+ * default; some stacks negotiate higher).
  */
 export const BODY_CHUNK = 500;
 
@@ -323,11 +341,22 @@ export function buildPrintPayload(
   // `encodeBitmap`. Leading dead-zone prepends blank feed columns
   // (4 bytes per column, all-zero) before the encoded bitmap so the
   // first printable feed-step lands past the head-to-cutter gap.
+  // Trailing feed columns get appended after the bitmap so the
+  // printed area advances past the cutter and becomes visible —
+  // bench-confirmed on LT-200B (CUT 0x30 alone doesn't advance
+  // enough tape; engine.forcedTrailingFeedMm carries the magnitude).
   const bodyImage = encodeBitmap(bitmap, { left: deadZone.left, right: deadZone.right });
   const leadingPadBytes = 4 * deadZone.leading;
-  const image =
-    leadingPadBytes > 0 ? concatBytes(new Uint8Array(leadingPadBytes), bodyImage) : bodyImage;
-  const feedCount = bitmap.widthPx + deadZone.leading;
+  const trailingFeedDots = options?.engine
+    ? Math.round((getForcedTrailingFeedMm(options.engine) * options.engine.dpi) / 25.4)
+    : 0;
+  const trailingPadBytes = 4 * trailingFeedDots;
+  const segments: Uint8Array[] = [];
+  if (leadingPadBytes > 0) segments.push(new Uint8Array(leadingPadBytes));
+  segments.push(bodyImage);
+  if (trailingPadBytes > 0) segments.push(new Uint8Array(trailingPadBytes));
+  const image = segments.length === 1 ? segments[0]! : concat(segments);
+  const feedCount = bitmap.widthPx + deadZone.leading + trailingFeedDots;
   const printData = buildPrintData(feedCount, PROTOCOL_HEAD_FRAME, image);
 
   const copies = Math.max(1, options?.copies ?? 1);
@@ -339,13 +368,6 @@ export function buildPrintPayload(
   }
   parts.push(buildNumberOfCopies(copies), printData, buildCut(cutByte), STATUS, END);
   return concat(parts);
-}
-
-function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
-  const out = new Uint8Array(a.length + b.length);
-  out.set(a, 0);
-  out.set(b, a.length);
-  return out;
 }
 
 function concat(parts: readonly Uint8Array[]): Uint8Array {
@@ -367,11 +389,21 @@ function concat(parts: readonly Uint8Array[]): Uint8Array {
  *
  * Output:
  *   - First entry: 9-byte header.
- *   - Subsequent entries (print path): `[chunkIndex, ...500 body
- *     bytes]`. Final chunk additionally appends MAGIC `[0x12, 0x34]`.
+ *   - Subsequent entries (print path): `[chunkIndex, ...body[i*N..]]`
+ *     where N = effective chunk size. Final chunk additionally
+ *     appends MAGIC `[0x12, 0x34]`.
  *   - Non-print path (`isPrint = false`): single body write with
  *     leading zero index (used by the stand-alone set-cassette-type
  *     payload that goes over `printShortCommandUUID`).
+ *
+ * Effective chunk size: `min(BODY_CHUNK, mtu - 1)` when `mtu` is
+ * provided (via the registry's `bluetooth-gatt.mtu`). The −1 reserves
+ * one byte for the protocol-level chunk-index prefix that fronts each
+ * BLE write. When `mtu` is omitted the encoder falls back to
+ * `BODY_CHUNK` — which matches single-chunk job behaviour but will
+ * blow up multi-chunk jobs on stacks that don't auto-fragment writes
+ * exceeding negotiated link MTU. Always pass `mtu` for correctness
+ * on multi-chunk content.
  *
  * Chunk indices are sequential 0, 1, 2, … with the wire-format
  * quirk that index 27 is skipped — the chunk that would have
@@ -379,7 +411,11 @@ function concat(parts: readonly Uint8Array[]): Uint8Array {
  * by one. Realistic LT labels never approach 27 chunks
  * (~13.5 KiB body); the quirk is preserved for forward-compat.
  */
-export function chunkPayload(payload: Uint8Array, isPrint: boolean): Uint8Array[] {
+export function chunkPayload(
+  payload: Uint8Array,
+  isPrint: boolean,
+  options?: { mtu?: number },
+): Uint8Array[] {
   const header = buildHeader(payload.length);
   const writes: Uint8Array[] = [header];
 
@@ -391,14 +427,20 @@ export function chunkPayload(payload: Uint8Array, isPrint: boolean): Uint8Array[
     return writes;
   }
 
-  const chunkCount = Math.max(1, Math.ceil(payload.length / BODY_CHUNK));
+  // Reserve one byte for the chunk-index prefix; cap by both the
+  // protocol max (BODY_CHUNK) and the BLE link MTU when known.
+  const maxBody =
+    options?.mtu !== undefined
+      ? Math.max(1, Math.min(BODY_CHUNK, options.mtu - 1))
+      : BODY_CHUNK;
+  const chunkCount = Math.max(1, Math.ceil(payload.length / maxBody));
   if (chunkCount > 0xff) {
     throw new Error(`payload exceeds 1-byte chunk index space (${String(chunkCount)} > 255)`);
   }
 
   for (let i = 0; i < chunkCount; i += 1) {
-    const start = i * BODY_CHUNK;
-    const end = Math.min(start + BODY_CHUNK, payload.length);
+    const start = i * maxBody;
+    const end = Math.min(start + maxBody, payload.length);
     const body = payload.subarray(start, end);
 
     const chunkIndex = i >= CHUNK_INDEX_QUIRK_THRESHOLD ? i + 1 : i;
@@ -437,7 +479,7 @@ export function encodeLabel(
   bitmap: LabelBitmap,
   options?: LetraTagPrintOptions,
   overrides?: __DebugEncoderOverrides,
-  context?: { engine?: PrintEngine; media?: MediaDescriptor },
+  context?: { engine?: PrintEngine; media?: MediaDescriptor; mtu?: number },
 ): Uint8Array[] {
   const payloadOptions: PrintPayloadOptions = {
     copies: options?.copies ?? 1,
@@ -446,7 +488,7 @@ export function encodeLabel(
   if (context?.engine) payloadOptions.engine = context.engine;
   if (context?.media) payloadOptions.media = context.media;
   const payload = buildPrintPayload(bitmap, payloadOptions, overrides);
-  return chunkPayload(payload, true);
+  return chunkPayload(payload, true, context?.mtu !== undefined ? { mtu: context.mtu } : undefined);
 }
 
 /**
