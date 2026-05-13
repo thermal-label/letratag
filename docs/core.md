@@ -91,7 +91,7 @@ bench-confirmed failure mode at 500-byte writes.
 
 `parseStatus` decodes the RX notification's result code (`0` =
 success, `5` = silent reject, …; full table in the
-[protocol reference](./protocol/letratag-bt#rx-notification-per-job-result)).
+[protocol reference](./protocol/letratag-bt#2.-rx-notification-—-per-job-result)).
 The encoder collapses the two observed alias codes onto canonical
 results: `1 → SUCCESS` (same semantics as `0`) and `5 → FAILED`
 (same semantics as `2`). Hosts that need the raw firmware code can
