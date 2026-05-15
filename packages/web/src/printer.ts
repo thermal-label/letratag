@@ -1,4 +1,4 @@
-import { renderImage, type RawImageData } from '@mbtech-nl/bitmap';
+import { renderImage, rotateBitmap, type RawImageData } from '@mbtech-nl/bitmap';
 import {
   pickRotation,
   type MediaDescriptor,
@@ -108,7 +108,12 @@ export class LetraTagPrinter implements PrinterAdapter {
   ): Promise<void> {
     const resolved = (media ?? DEFAULT_MEDIA) as LetraTagMedia;
     const rotate = pickRotation(image, resolved, ROTATE_DIRECTION, options?.rotate);
-    const bitmap = renderImage(image, { dither: true, rotate });
+    const headAligned = renderImage(image, { dither: true, rotate });
+    // encodeBitmap's input contract: widthPx = feed axis, heightPx = across head.
+    // renderImage produces the user-facing head-aligned bitmap (widthPx = across head,
+    // heightPx = feed), matching the d1-core convention. Swap axes for the LT-200B
+    // encoder so the full feed length prints instead of just the first heightPx rows.
+    const bitmap = rotateBitmap(headAligned, 270);
 
     const engine = this.device.engines[0];
     // Pull the BLE link MTU from the registry so the encoder sizes
