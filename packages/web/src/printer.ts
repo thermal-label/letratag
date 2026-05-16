@@ -140,12 +140,31 @@ export class LetraTagPrinter implements PrinterAdapter {
     // resolve, but the lastStatus stays as the previous value.
     try {
       const bytes = await this.transport.read(STATUS_NOTIFICATION_LENGTH, STATUS_READ_TIMEOUT_MS);
-      this.lastStatus = parseStatus(bytes);
+      const postPrint = parseStatus(bytes);
+      this.lastStatus = postPrint;
       // Fan out to `onStatus` subscribers — post-print notification
       // is one of two real push sources on this driver (the other
       // being advertising-data; see `startAdvertisementWatch`).
+      //
+      // `parseStatus` (the 3-byte RX-notification parser) carries no
+      // `battery` / `details` — only `advertisingToPrinterStatus`
+      // does. Pushing the bare post-print status would overwrite the
+      // rich advertising-derived status in the harness shell, dropping
+      // the battery glyph + detail rows at the print step. So when an
+      // advertising snapshot is known, push a *merged* status: the
+      // advertising projection (battery / details / mediaLoaded) with
+      // the post-print result's `errors` + `ready` overlaid. With no
+      // advertising known, fall back to the bare post-print status.
       if (this.statusListeners.size > 0) {
-        this.notifyListeners(this.lastStatus);
+        const pushed: PrinterStatus = this.lastAdvertising
+          ? {
+              ...advertisingToPrinterStatus(this.lastAdvertising),
+              errors: postPrint.errors,
+              ready: postPrint.ready,
+              rawBytes: postPrint.rawBytes,
+            }
+          : postPrint;
+        this.notifyListeners(pushed);
       }
     } catch {
       // Timeout / closed transport — leave lastStatus untouched.

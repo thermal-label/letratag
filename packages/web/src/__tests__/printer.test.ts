@@ -217,6 +217,44 @@ describe('LetraTagPrinter (fake transport)', () => {
       expect(received).toBeGreaterThan(initialReceived);
     });
 
+    it('post-print push keeps battery + details from the advertising snapshot', async () => {
+      const transport = new FakeTransport();
+      // success notification — `parseStatus` carries no battery/details
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      // Seed advertising state — this is the rich source of battery +
+      // details that the harness shell renders.
+      printer.setAdvertisingStatus({
+        revision: 1,
+        cassetteId: 3,
+        cassetteWidthMm: 12,
+        carbonType: false,
+        busyLocked: false,
+        batteryLevel: 2,
+        charging: true,
+        errors: [],
+        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
+      });
+      const pushed: import('@thermal-label/contracts').PrinterStatus[] = [];
+      printer.onStatus(s => {
+        pushed.push(s);
+      });
+      await new Promise<void>(r => setTimeout(r, 5)); // let the replay land
+      await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
+
+      // The status delivered by the post-print push must still carry
+      // the advertising-derived battery glyph + detail rows — the bare
+      // `parseStatus` result drops both.
+      const last = pushed.at(-1)!;
+      expect(last.battery).toBeDefined();
+      expect(last.battery?.charging).toBe(true);
+      expect(last.details).toBeDefined();
+      expect((last.details ?? []).length).toBeGreaterThan(0);
+      // The post-print result's errors/ready are still overlaid.
+      expect(last.errors).toEqual([]);
+      expect(last.ready).toBe(true);
+    });
+
     it('unsubscribe stops further callbacks', () => {
       const transport = new FakeTransport();
       const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
