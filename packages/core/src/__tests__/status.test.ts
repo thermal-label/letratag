@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  advertisingToPrinterStatus,
-  parseAdvertisingStatus,
-  parseStatus,
-} from '../status.js';
+import { parseStatus } from '../status.js';
 
 function frame(code: number): Uint8Array {
   return new Uint8Array([0x1b, 0x52, code]);
@@ -55,126 +51,9 @@ describe('parseStatus (RX notification)', () => {
     expect(parseStatus(frame(7)).errors[0]?.code).toBe('cassette_missing');
   });
 
-  it('mediaLoaded is always true (cassette signal lives in advertising data)', () => {
+  it('mediaLoaded is always true (cassette absence surfaces via code 7, not this field)', () => {
     for (const code of [0, 1, 2, 3, 4, 5, 6, 7]) {
       expect(parseStatus(frame(code)).mediaLoaded).toBe(true);
     }
-  });
-});
-
-describe('parseAdvertisingStatus (manufacturer-data)', () => {
-  it('rejects frames shorter than 3 bytes', () => {
-    expect(parseAdvertisingStatus(new Uint8Array([0x10, 0x03]))).toBeNull();
-  });
-
-  it('idle 12mm cassette, full battery, not charging', () => {
-    // byte 0 = 0x10 (revision = 1, low nibble reserved)
-    // byte 1 = 0x03 (cassetteId = 3 = 12mm; carbonType=0; busyLocked=0)
-    // byte 2 = 0x30 (batteryLevel = 3 (bits 4-5), no errors, charging=0)
-    const s = parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x30]));
-    expect(s).not.toBeNull();
-    expect(s!.revision).toBe(1);
-    expect(s!.cassetteId).toBe(3);
-    expect(s!.cassetteWidthMm).toBe(12);
-    expect(s!.busyLocked).toBe(false);
-    expect(s!.carbonType).toBe(false);
-    expect(s!.batteryLevel).toBe(3);
-    expect(s!.charging).toBe(false);
-    expect(s!.errors.length).toBe(0);
-  });
-
-  it('printer busy with 9mm cassette, low battery warning', () => {
-    // byte 0 = 0x20 (revision = 2)
-    // byte 1 = 0x22 (cassetteId = 2 = 9mm; busyLocked = bit 5 set)
-    // byte 2 = 0x18 (BATTERY_LOW bit 3 set; batteryLevel = 1 (bits 4-5 = 01))
-    const s = parseAdvertisingStatus(new Uint8Array([0x20, 0x22, 0x18]));
-    expect(s).not.toBeNull();
-    expect(s!.revision).toBe(2);
-    expect(s!.cassetteId).toBe(2);
-    expect(s!.cassetteWidthMm).toBe(9);
-    expect(s!.busyLocked).toBe(true);
-    expect(s!.batteryLevel).toBe(1);
-    expect(s!.errors.find(e => e.code === 'low_battery')).toBeDefined();
-  });
-
-  it('tape jam + cutter jam are surfaced as errors', () => {
-    // byte 2 = 0x03 = tape jam (bit 0) + cutter jam (bit 1)
-    const s = parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x03]));
-    const codes = s!.errors.map(e => e.code);
-    expect(codes).toContain('tape_jam');
-    expect(codes).toContain('cutter_jam');
-  });
-
-  it('battery too low is fatal in advertisingToPrinterStatus', () => {
-    // byte 2 = 0x04 = BATTERY_TOO_LOW (bit 2)
-    const adv = parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x04]))!;
-    const ps = advertisingToPrinterStatus(adv);
-    expect(ps.ready).toBe(false);
-    expect(ps.mediaLoaded).toBe(true); // cassetteId !== 0
-  });
-
-  it('cassetteId 0 → mediaLoaded false', () => {
-    const adv = parseAdvertisingStatus(new Uint8Array([0x10, 0x00, 0x30]))!;
-    const ps = advertisingToPrinterStatus(adv);
-    expect(ps.mediaLoaded).toBe(false);
-  });
-
-  it('charging flag', () => {
-    // byte 2 = 0x40 = bit 6 set
-    const s = parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x40]))!;
-    expect(s.charging).toBe(true);
-  });
-});
-
-describe('advertisingToPrinterStatus — battery + details', () => {
-  it('normalises the 0..3 battery bucket to a 0..1 fraction', () => {
-    // byte 2 = 0x30 → batteryLevel 3 (full) → fraction 1
-    const full = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x30]))!,
-    );
-    expect(full.battery?.fraction).toBe(1);
-
-    // byte 2 = 0x10 → batteryLevel 1 → fraction 1/3
-    const low = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x10]))!,
-    );
-    expect(low.battery?.fraction).toBeCloseTo(1 / 3);
-
-    // byte 2 = 0x00 → batteryLevel 0 → fraction 0
-    const empty = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x00]))!,
-    );
-    expect(empty.battery?.fraction).toBe(0);
-  });
-
-  it('carries the charging flag onto battery', () => {
-    // byte 2 = 0x70 → batteryLevel 3 + charging bit 6
-    const ps = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x70]))!,
-    );
-    expect(ps.battery?.charging).toBe(true);
-    expect(ps.battery?.fraction).toBe(1);
-  });
-
-  it('emits cassette-width and protocol-revision detail rows', () => {
-    // byte 0 = 0x20 → revision 2; byte 1 = 0x03 → 12mm cassette
-    const ps = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x20, 0x03, 0x30]))!,
-    );
-    const width = ps.details?.find(d => d.label === 'Cassette width');
-    expect(width?.value).toBe('12 mm');
-    expect(width?.severity).toBe('info');
-    const rev = ps.details?.find(d => d.label === 'Protocol revision');
-    expect(rev?.value).toBe('2');
-  });
-
-  it('flags an absent cassette in the width detail row', () => {
-    // byte 1 = 0x00 → cassetteId 0 → no cassette
-    const ps = advertisingToPrinterStatus(
-      parseAdvertisingStatus(new Uint8Array([0x10, 0x00, 0x30]))!,
-    );
-    const width = ps.details?.find(d => d.label === 'Cassette width');
-    expect(width?.value).toBe('none');
-    expect(width?.severity).toBe('warn');
   });
 });

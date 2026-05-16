@@ -99,21 +99,11 @@ describe('LetraTagPrinter (fake transport)', () => {
     expect(preview.planes.length).toBe(1);
   });
 
-  it('getStatus prefers the advertising-data snapshot when set', async () => {
+  it('getStatus returns the post-print status after a print', async () => {
     const transport = new FakeTransport();
+    transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00])); // success
     const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-    // 12mm cassette, full battery, no errors, idle
-    printer.setAdvertisingStatus({
-      revision: 1,
-      cassetteId: 3,
-      cassetteWidthMm: 12,
-      carbonType: false,
-      busyLocked: false,
-      batteryLevel: 3,
-      charging: false,
-      errors: [],
-      rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
-    });
+    await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
     const s = await printer.getStatus();
     expect(s.ready).toBe(true);
     expect(s.mediaLoaded).toBe(true);
@@ -135,18 +125,6 @@ describe('LetraTagPrinter (fake transport)', () => {
     it('replays the current cached status on subscribe', async () => {
       const transport = new FakeTransport();
       const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-      // Seed advertising state so getStatus has something non-empty to replay.
-      printer.setAdvertisingStatus({
-        revision: 1,
-        cassetteId: 3,
-        cassetteWidthMm: 12,
-        carbonType: false,
-        busyLocked: false,
-        batteryLevel: 3,
-        charging: false,
-        errors: [],
-        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
-      });
       let received = 0;
       const unsub = printer.onStatus(() => {
         received += 1;
@@ -155,41 +133,6 @@ describe('LetraTagPrinter (fake transport)', () => {
       await new Promise<void>(r => setTimeout(r, 5));
       unsub();
       expect(received).toBeGreaterThanOrEqual(1);
-    });
-
-    it('fans out setAdvertisingStatus updates to subscribers', () => {
-      const transport = new FakeTransport();
-      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-      const seen: number[] = [];
-      const unsub = printer.onStatus(s => {
-        // Whatever the projection yields — count invocations.
-        seen.push(s.errors.length);
-      });
-      printer.setAdvertisingStatus({
-        revision: 1,
-        cassetteId: 3,
-        cassetteWidthMm: 12,
-        carbonType: false,
-        busyLocked: false,
-        batteryLevel: 3,
-        charging: false,
-        errors: [],
-        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
-      });
-      printer.setAdvertisingStatus({
-        revision: 1,
-        cassetteId: 0,
-        cassetteWidthMm: 0,
-        carbonType: false,
-        busyLocked: false,
-        batteryLevel: 1,
-        charging: false,
-        errors: [],
-        rawBytes: new Uint8Array([0x10, 0x00, 0x10]),
-      });
-      unsub();
-      // Synchronous fan-out — both setAdvertisingStatus calls fire cb.
-      expect(seen.length).toBe(2);
     });
 
     it('post-print notification fans out to subscribers', async () => {
@@ -217,122 +160,20 @@ describe('LetraTagPrinter (fake transport)', () => {
       expect(received).toBeGreaterThan(initialReceived);
     });
 
-    it('post-print push keeps battery + details from the advertising snapshot', async () => {
+    it('unsubscribe stops further callbacks', async () => {
       const transport = new FakeTransport();
-      // success notification — `parseStatus` carries no battery/details
-      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
-      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-      // Seed advertising state — this is the rich source of battery +
-      // details that the harness shell renders.
-      printer.setAdvertisingStatus({
-        revision: 1,
-        cassetteId: 3,
-        cassetteWidthMm: 12,
-        carbonType: false,
-        busyLocked: false,
-        batteryLevel: 2,
-        charging: true,
-        errors: [],
-        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
-      });
-      const pushed: import('@thermal-label/contracts').PrinterStatus[] = [];
-      printer.onStatus(s => {
-        pushed.push(s);
-      });
-      await new Promise<void>(r => setTimeout(r, 5)); // let the replay land
-      await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
-
-      // The status delivered by the post-print push must still carry
-      // the advertising-derived battery glyph + detail rows — the bare
-      // `parseStatus` result drops both.
-      const last = pushed.at(-1)!;
-      expect(last.battery).toBeDefined();
-      expect(last.battery?.charging).toBe(true);
-      expect(last.details).toBeDefined();
-      expect((last.details ?? []).length).toBeGreaterThan(0);
-      // The post-print result's errors/ready are still overlaid.
-      expect(last.errors).toEqual([]);
-      expect(last.ready).toBe(true);
-    });
-
-    it('unsubscribe stops further callbacks', () => {
-      const transport = new FakeTransport();
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00])); // success
       const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
       let received = 0;
       const unsub = printer.onStatus(() => {
         received += 1;
       });
+      await new Promise<void>(r => setTimeout(r, 5)); // let the replay land
+      const afterReplay = received;
       unsub();
-      printer.setAdvertisingStatus({
-        revision: 1,
-        cassetteId: 3,
-        cassetteWidthMm: 12,
-        carbonType: false,
-        busyLocked: false,
-        batteryLevel: 3,
-        charging: false,
-        errors: [],
-        rawBytes: new Uint8Array([0x10, 0x03, 0x30]),
-      });
-      expect(received).toBe(0);
-    });
-  });
-
-  describe('startAdvertisementWatch (plan 11)', () => {
-    it('returns false when the device has no watchAdvertisements support', async () => {
-      const transport = new FakeTransport();
-      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-      // jsdom's BluetoothDevice doesn't ship watchAdvertisements;
-      // a plain object stands in.
-      const fakeDevice = {
-        addEventListener: () => {
-          /* no-op */
-        },
-        removeEventListener: () => {
-          /* no-op */
-        },
-      } as unknown as BluetoothDevice;
-      const result = await printer.startAdvertisementWatch(fakeDevice);
-      expect(result).toBe(false);
-    });
-
-    it('subscribes and forwards parsed advertisements when watchAdvertisements exists', async () => {
-      const transport = new FakeTransport();
-      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
-
-      let advHandler: ((event: Event) => void) | null = null;
-      const fakeDevice = {
-        addEventListener: (type: string, handler: (e: Event) => void) => {
-          if (type === 'advertisementreceived') advHandler = handler;
-        },
-        removeEventListener: () => {
-          /* no-op */
-        },
-        watchAdvertisements: () => Promise.resolve(),
-      } as unknown as BluetoothDevice;
-
-      const result = await printer.startAdvertisementWatch(fakeDevice);
-      expect(result).toBe(true);
-      expect(advHandler).not.toBeNull();
-
-      // Subscribe a status listener and dispatch a synthetic
-      // advertisementreceived event with valid manufacturer-data bytes.
-      const seen: number[] = [];
-      printer.onStatus(s => {
-        seen.push(s.errors.length);
-      });
-      await new Promise<void>(r => setTimeout(r, 5)); // let replay land first
-      const seenAfterReplay = seen.length;
-
-      // 12mm cassette, full battery — same payload as the existing
-      // getStatus-from-advertising test.
-      const bytes = new Uint8Array([0x10, 0x03, 0x30]);
-      const view = new DataView(bytes.buffer);
-      const fakeEvent = {
-        manufacturerData: new Map<number, DataView>([[0x0469, view]]),
-      } as unknown as Event;
-      advHandler!(fakeEvent);
-      expect(seen.length).toBeGreaterThan(seenAfterReplay);
+      // A print after unsubscribe must not reach the callback.
+      await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
+      expect(received).toBe(afterReplay);
     });
   });
 });

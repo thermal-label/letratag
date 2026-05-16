@@ -5,12 +5,7 @@ import {
   type PrinterAdapterMap,
   type TransportType,
 } from '@thermal-label/contracts';
-import {
-  DEVICE_REGISTRY_DATA,
-  DEVICES,
-  parseAdvertisingStatus,
-} from '@thermal-label/letratag-core';
-import type { AdvertisingStatus } from '@thermal-label/letratag-core';
+import { DEVICE_REGISTRY_DATA, DEVICES } from '@thermal-label/letratag-core';
 import { WebBluetoothTransport } from '@thermal-label/transport/web';
 import { LetraTagPrinter } from './printer.js';
 
@@ -32,12 +27,6 @@ export interface PairResult {
   shortCommandUuidDerived: string;
   /** Best-effort link MTU; `null` when the browser doesn't expose it. */
   linkMtu: number | null;
-  /**
-   * Most recent advertising-data status snapshot captured during the
-   * scan that found the device, when available. The driver also
-   * holds this internally — see `LetraTagPrinter.setAdvertisingStatus`.
-   */
-  advertisingStatus: AdvertisingStatus | null;
 }
 
 export interface RequestPrinterOptions {
@@ -124,11 +113,6 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
     rxUuidDerived: rxUuid,
     shortCommandUuidDerived: shortCmdUuid,
     linkMtu: null,
-    // The Web Bluetooth `requestDevice` flow does not expose the
-    // scan-time advertisement bytes to us. Callers that want the
-    // advertising-data snapshot should use the `scan()` helper
-    // below instead, which surfaces it explicitly.
-    advertisingStatus: null,
   };
 }
 
@@ -177,23 +161,3 @@ export function devicesForTransport(transport: TransportType): readonly DeviceEn
 // from letratag-web don't need a separate @thermal-label/contracts
 // import.
 export { DeviceIdentificationRequiredError };
-
-/**
- * Helper to decode an advertisement event's manufacturer data into a
- * structured `AdvertisingStatus`. Web Bluetooth's
- * `BluetoothAdvertisingEvent` exposes `manufacturerData` as a
- * `Map<number, DataView>` — the LT-200B's payload is the value of
- * any entry. We read bytes 0..2 of the first entry's value, the
- * layout established in
- * [`status.ts`'s `parseAdvertisingStatus`](../core/src/status.ts).
- */
-export function decodeAdvertisementManufacturerData(
-  manufacturerData: Map<number, DataView> | undefined,
-): AdvertisingStatus | null {
-  if (!manufacturerData || manufacturerData.size === 0) return null;
-  const first = manufacturerData.values().next();
-  if (first.done) return null;
-  const view = first.value;
-  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-  return parseAdvertisingStatus(bytes);
-}

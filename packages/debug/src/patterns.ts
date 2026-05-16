@@ -48,7 +48,7 @@ export const PATTERNS: readonly PatternMeta[] = [
     id: 'T4',
     label: 'T4 — Status capture',
     description:
-      'Three identical labels printed under different conditions (normal / cassette removed / low battery). The labels are the same — the captured RX byte and advertising-data state are the data of interest.',
+      'Three identical labels printed under different conditions (normal / cassette removed / low battery). The labels are the same — the captured post-print RX status byte is the data of interest.',
     conflict: 'C6',
   },
   {

@@ -4,10 +4,8 @@ import { encodeLabel } from '@thermal-label/letratag-core/debug';
 import type { __DebugEncoderOverrides } from '@thermal-label/letratag-core/debug';
 import {
   DEVICES,
-  parseAdvertisingStatus,
   parseStatus,
   STATUS_NOTIFICATION_LENGTH,
-  type AdvertisingStatus,
 } from '@thermal-label/letratag-core';
 import { computed, onMounted, ref, watch, type Ref } from 'vue';
 import {
@@ -110,10 +108,6 @@ function clearTrace(): void {
   traceStartedAt.value = performance.now();
 }
 
-// ─── Advertising-data status (continuous broadcast) ─────────────────
-
-const advertisingStatus: Ref<AdvertisingStatus | null> = ref(null);
-
 // ─── Cassette / reporter metadata ───────────────────────────────────
 
 const reporterName = ref('');
@@ -142,25 +136,6 @@ async function connect(): Promise<void> {
       optionalServices: [CANONICAL_SERVICE],
     });
     if (!device.gatt) throw new Error('Selected device has no GATT server');
-
-    // Web Bluetooth's `requestDevice` does not surface the scan-time
-    // advertisement bytes directly. We hook `advertisementreceived` on
-    // the device instead — once `watchAdvertisements()` is called and
-    // the user grants permission, advertising-data updates flow in.
-    if (typeof (device as unknown as { watchAdvertisements?: () => Promise<void> })
-      .watchAdvertisements === 'function') {
-      try {
-        device.addEventListener('advertisementreceived', onAdvertisement as EventListener);
-        await (device as unknown as { watchAdvertisements: () => Promise<void> })
-          .watchAdvertisements();
-      } catch (err) {
-        appendTrace({
-          dir: 'info',
-          hex: '',
-          message: `watchAdvertisements not available: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
-    }
 
     const server = await device.gatt.connect();
     const services = await server.getPrimaryServices();
@@ -204,7 +179,6 @@ async function disconnect(): Promise<void> {
   if (!c) return;
   try {
     c.rxCharacteristic.removeEventListener('characteristicvaluechanged', onRxNotification);
-    c.device.removeEventListener('advertisementreceived', onAdvertisement as EventListener);
     await c.rxCharacteristic.stopNotifications();
   } catch {
     // OK to ignore — device may have already disconnected.
@@ -229,27 +203,6 @@ function onRxNotification(event: Event): void {
     appendTrace({ dir: 'rx', hex: bytesToHex(bytes, 64), parsed: statusToParsed(status) });
   } else {
     appendTrace({ dir: 'rx', hex: bytesToHex(bytes, 64) });
-  }
-}
-
-function onAdvertisement(event: Event): void {
-  const ev = event as Event & {
-    manufacturerData?: Map<number, DataView>;
-  };
-  const md = ev.manufacturerData;
-  if (!md || md.size === 0) return;
-  const first = md.values().next();
-  if (first.done) return;
-  const view = first.value;
-  const raw = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-  const adv = parseAdvertisingStatus(raw);
-  if (adv) {
-    advertisingStatus.value = adv;
-    appendTrace({
-      dir: 'info',
-      hex: bytesToHex(raw, 8),
-      message: `adv: cassette=${String(adv.cassetteId)} (${String(adv.cassetteWidthMm ?? '?')}mm) battery=${String(adv.batteryLevel)}/3 busy=${String(adv.busyLocked)}${adv.errors.length ? ` errors=[${adv.errors.map(e => e.code).join(',')}]` : ''}`,
-    });
   }
 }
 
@@ -522,38 +475,6 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         <dt>Short-command UUID</dt><dd>{{ connection.shortCmdUuid }}</dd>
         <dt>User-Agent</dt><dd>{{ userAgent }}</dd>
       </dl>
-    </section>
-
-    <!-- Advertising-data panel -->
-    <section v-if="advertisingStatus" class="panel">
-      <h2>Advertising data <span class="muted">(continuous broadcast)</span></h2>
-      <dl class="kv">
-        <dt>Cassette ID</dt>
-        <dd>{{ advertisingStatus.cassetteId }} ({{ advertisingStatus.cassetteWidthMm ?? '?' }} mm)</dd>
-        <dt>Battery</dt>
-        <dd>{{ advertisingStatus.batteryLevel }}/3 {{ advertisingStatus.charging ? '⚡ charging' : '' }}</dd>
-        <dt>Busy</dt>
-        <dd>{{ advertisingStatus.busyLocked ? 'yes (job in progress)' : 'no' }}</dd>
-        <dt>Errors</dt>
-        <dd>
-          <template v-if="advertisingStatus.errors.length">
-            <span v-for="e in advertisingStatus.errors" :key="e.code" class="tag err" style="margin-right: 4px;">
-              {{ e.code }}
-            </span>
-          </template>
-          <span v-else class="tag ok">none</span>
-        </dd>
-        <dt>Revision</dt>
-        <dd>{{ advertisingStatus.revision }}</dd>
-        <dt>Raw bytes</dt>
-        <dd>{{ Array.from(advertisingStatus.rawBytes).map(b => b.toString(16).padStart(2,'0')).join(' ') }}</dd>
-      </dl>
-      <p class="muted">
-        These three bytes are broadcast by the printer's BLE advertising
-        packets and updated continuously. <code>cassetteId 3</code> means the
-        loaded cassette is reported as 12 mm — the only width the LT-200B
-        accepts.
-      </p>
     </section>
 
     <!-- Test pattern selector -->

@@ -63,16 +63,10 @@ export {
   encodeSetCassetteType,
 } from './protocol.js';
 export {
-  ADVERTISING_STATUS_LENGTH,
-  BATTERY_LEVEL_MAX,
-  CASSETTE_WIDTH_MM,
   STATUS_NOTIFICATION_LENGTH,
   STATUS_REQUEST,
-  advertisingToPrinterStatus,
-  parseAdvertisingStatus,
   parseStatus,
 } from './status.js';
-export type { AdvertisingStatus, CassetteId } from './status.js';
 export { createPreviewOffline } from './preview.js';
 export type {
   LetraTagDevice,

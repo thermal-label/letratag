@@ -1,7 +1,6 @@
 export { LetraTagPrinter } from './printer.js';
 /* eslint-disable @typescript-eslint/no-deprecated -- legacy debug helper re-exported during plan-10 transition */
 export {
-  decodeAdvertisementManufacturerData,
   devicesForTransport,
   DeviceIdentificationRequiredError,
   requestPrinter,
@@ -12,24 +11,18 @@ export type { PairResult, RequestPrinterOptions } from './discovery.js';
 export type { ConnectOptions, PrinterAdapterMap } from '@thermal-label/contracts';
 
 export {
-  ADVERTISING_STATUS_LENGTH,
-  CASSETTE_WIDTH_MM,
   DEFAULT_MEDIA,
   DEVICES,
   LT_PAPER_WHITE,
   MEDIA,
   MEDIA_LIST,
   PROTOCOLS,
-  advertisingToPrinterStatus,
   encodeLabel,
   findMediaBySku,
-  parseAdvertisingStatus,
   parseStatus,
 } from '@thermal-label/letratag-core';
 
 export type {
-  AdvertisingStatus,
-  CassetteId,
   LetraTagDevice,
   LetraTagMaterial,
   LetraTagMedia,

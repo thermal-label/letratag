@@ -12,12 +12,9 @@ import {
   DEFAULT_MEDIA,
   ROTATE_DIRECTION,
   STATUS_NOTIFICATION_LENGTH,
-  advertisingToPrinterStatus,
   createPreviewOffline,
   encodeLabel,
-  parseAdvertisingStatus,
   parseStatus,
-  type AdvertisingStatus,
   type LetraTagDevice,
   type LetraTagMedia,
   type LetraTagPrintOptions,
@@ -40,16 +37,12 @@ const EMPTY_STATUS: PrinterStatus = {
  * with a real device entry, mirroring the labelmanager-web /
  * labelwriter-web shape.
  *
- * Two channels of status are wired in:
- *
- * 1. **Post-print notification** — the printer emits a 3-byte
- *    `[1B 52 code]` reply after each job, parsed via `parseStatus`.
- *    The driver stores this as the last-known status.
- * 2. **Advertising data** — the BLE advertising packets carry a
- *    3-byte payload with cassette presence + battery + busy +
- *    error flags. The discovery layer collects this when the device
- *    is scanned; the driver folds the latest snapshot into
- *    `getStatus()` so callers get a recent view between print jobs.
+ * Status has a single real source: the printer emits a 3-byte
+ * `[1B 52 code]` reply after each print job, parsed via `parseStatus`.
+ * The driver stores this as the last-known status and fans it out to
+ * `onStatus` subscribers. The LT-200B exposes no battery, cassette, or
+ * live-status telemetry over BLE — there is no out-of-job status
+ * channel.
  */
 export class LetraTagPrinter implements PrinterAdapter {
   readonly family = 'letratag';
@@ -57,18 +50,11 @@ export class LetraTagPrinter implements PrinterAdapter {
 
   private readonly transport: Transport;
   private lastStatus: PrinterStatus = EMPTY_STATUS;
-  private lastAdvertising: AdvertisingStatus | null = null;
   /**
-   * `onStatus` subscribers. Both status sources (post-print
-   * notifications and BLE advertising frames) push into this set —
-   * unifying the two streams behind a single subscription API per
-   * plan 11.
+   * `onStatus` subscribers. The post-print notification pushes into
+   * this set — the single real status source on this driver.
    */
   private readonly statusListeners = new Set<(status: PrinterStatus) => void>();
-  /** Bound advertisement handler — captured so removeEventListener works. */
-  private advertisementHandler: ((event: Event) => void) | null = null;
-  /** The device we're watching advertisements on (held for `close()` teardown). */
-  private watchedDevice: BluetoothDevice | null = null;
 
   constructor(device: LetraTagDevice, transport: Transport) {
     this.device = device;
@@ -81,24 +67,6 @@ export class LetraTagPrinter implements PrinterAdapter {
 
   get connected(): boolean {
     return this.transport.connected;
-  }
-
-  /**
-   * Update the printer's known advertising state. Called by the
-   * discovery layer with the most recent manufacturer-data payload.
-   * Use {@link parseAdvertisingStatus} to construct the argument.
-   *
-   * Per plan 11: also fans out to `onStatus` subscribers so the
-   * harness shell sees cassette / battery / busy changes without
-   * polling. Subscribers receive the
-   * `advertisingToPrinterStatus(adv)` projection — same shape they'd
-   * see from `getStatus()`.
-   */
-  setAdvertisingStatus(adv: AdvertisingStatus | null): void {
-    this.lastAdvertising = adv;
-    if (adv !== null && this.statusListeners.size > 0) {
-      this.notifyListeners(advertisingToPrinterStatus(adv));
-    }
   }
 
   async print(
@@ -142,29 +110,10 @@ export class LetraTagPrinter implements PrinterAdapter {
       const bytes = await this.transport.read(STATUS_NOTIFICATION_LENGTH, STATUS_READ_TIMEOUT_MS);
       const postPrint = parseStatus(bytes);
       this.lastStatus = postPrint;
-      // Fan out to `onStatus` subscribers — post-print notification
-      // is one of two real push sources on this driver (the other
-      // being advertising-data; see `startAdvertisementWatch`).
-      //
-      // `parseStatus` (the 3-byte RX-notification parser) carries no
-      // `battery` / `details` — only `advertisingToPrinterStatus`
-      // does. Pushing the bare post-print status would overwrite the
-      // rich advertising-derived status in the harness shell, dropping
-      // the battery glyph + detail rows at the print step. So when an
-      // advertising snapshot is known, push a *merged* status: the
-      // advertising projection (battery / details / mediaLoaded) with
-      // the post-print result's `errors` + `ready` overlaid. With no
-      // advertising known, fall back to the bare post-print status.
+      // Fan out to `onStatus` subscribers — the post-print
+      // notification is the single real status source on this driver.
       if (this.statusListeners.size > 0) {
-        const pushed: PrinterStatus = this.lastAdvertising
-          ? {
-              ...advertisingToPrinterStatus(this.lastAdvertising),
-              errors: postPrint.errors,
-              ready: postPrint.ready,
-              rawBytes: postPrint.rawBytes,
-            }
-          : postPrint;
-        this.notifyListeners(pushed);
+        this.notifyListeners(postPrint);
       }
     } catch {
       // Timeout / closed transport — leave lastStatus untouched.
@@ -183,29 +132,19 @@ export class LetraTagPrinter implements PrinterAdapter {
   }
 
   /**
-   * Return the printer's last-known status. Prefers the advertising-data
-   * snapshot when available (it covers cassette + battery + errors and
-   * updates continuously without a print job); falls back to the most
-   * recent post-print notification, then to a default empty status.
+   * Return the printer's last-known status — the most recent
+   * post-print notification, or a default empty status before the
+   * first print. The LT-200B has no out-of-job status channel.
    */
   getStatus(): Promise<PrinterStatus> {
-    if (this.lastAdvertising) {
-      return Promise.resolve(advertisingToPrinterStatus(this.lastAdvertising));
-    }
     return Promise.resolve(this.lastStatus);
   }
 
   /**
-   * Subscribe to status updates. Two real push sources feed the
-   * subscriber:
-   *
-   * 1. Post-print notification — the 3-byte `[1B 52 code]` reply on
-   *    the RX characteristic at the end of each print job, parsed
-   *    via {@link parseStatus}.
-   * 2. BLE advertising data — continuous cassette / battery / busy
-   *    / error flags, parsed via {@link parseAdvertisingStatus}. Only
-   *    forwarded when {@link startAdvertisementWatch} has been
-   *    called.
+   * Subscribe to status updates. The single real push source is the
+   * post-print notification — the 3-byte `[1B 52 code]` reply on the
+   * RX characteristic at the end of each print job, parsed via
+   * {@link parseStatus}.
    *
    * The current cached status is replayed immediately on subscribe
    * so the harness shell's status pill resolves quickly without
@@ -228,79 +167,6 @@ export class LetraTagPrinter implements PrinterAdapter {
   }
 
   /**
-   * Subscribe to the LT-200B's BLE advertising packets and fold
-   * each parsed `AdvertisingStatus` into the driver's status state
-   * (via {@link setAdvertisingStatus}). The 3-byte payload covers
-   * cassette presence, battery, busy, and error flags — and the
-   * printer keeps advertising while idle, so the harness gets
-   * continuous status without forcing a print first.
-   *
-   * Feature-checked: Web Bluetooth's `watchAdvertisements` is behind
-   * a Chrome flag in some versions. When the method is missing on
-   * the picked `BluetoothDevice`, this no-ops — `getStatus()` still
-   * works from the post-print notification path, just without the
-   * continuous update.
-   *
-   * Calls `device.watchAdvertisements()` and registers an
-   * `advertisementreceived` listener. Both are torn down on
-   * `close()`.
-   *
-   * @param device — the same `BluetoothDevice` returned by
-   *   `requestPrinter()` / `requestPrinters()`. The driver holds a
-   *   reference for teardown; pass the device once per connect.
-   * @returns `true` if the watch was started, `false` if
-   *   `watchAdvertisements` is unavailable in this browser.
-   */
-  async startAdvertisementWatch(device: BluetoothDevice): Promise<boolean> {
-    // Feature check — Chrome ships `watchAdvertisements` under
-    // chrome://flags/#enable-experimental-web-platform-features in
-    // some versions. Type cast through unknown because the global
-    // BluetoothDevice typings may not declare it.
-    const dev = device as BluetoothDevice & {
-      watchAdvertisements?: () => Promise<void>;
-    };
-    if (typeof dev.watchAdvertisements !== 'function') {
-      return false;
-    }
-    if (this.advertisementHandler !== null) {
-      // Already watching — idempotent.
-      return true;
-    }
-
-    this.advertisementHandler = (event: Event): void => {
-      // BluetoothAdvertisingEvent.manufacturerData is a
-      // `Map<number, DataView>`. Read the first entry's bytes and
-      // parse to an AdvertisingStatus, then fold via the existing
-      // setAdvertisingStatus path (which fans out to subscribers).
-      const advEvent = event as Event & {
-        manufacturerData?: Map<number, DataView>;
-      };
-      const map = advEvent.manufacturerData;
-      if (!map || map.size === 0) return;
-      const first = map.values().next();
-      if (first.done) return;
-      const view = first.value;
-      const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-      const parsed = parseAdvertisingStatus(bytes);
-      if (parsed) this.setAdvertisingStatus(parsed);
-    };
-    device.addEventListener('advertisementreceived', this.advertisementHandler);
-    this.watchedDevice = device;
-    try {
-      await dev.watchAdvertisements();
-    } catch {
-      // `watchAdvertisements` can reject if the browser blocks the
-      // permission or the device disconnected. Roll back the
-      // listener registration so a retry can succeed.
-      device.removeEventListener('advertisementreceived', this.advertisementHandler);
-      this.advertisementHandler = null;
-      this.watchedDevice = null;
-      return false;
-    }
-    return true;
-  }
-
-  /**
    * Fan-out helper — clones the listener set before iterating so an
    * unsubscribe inside a callback doesn't skip siblings.
    */
@@ -317,22 +183,6 @@ export class LetraTagPrinter implements PrinterAdapter {
   }
 
   async close(): Promise<void> {
-    if (this.advertisementHandler !== null && this.watchedDevice !== null) {
-      this.watchedDevice.removeEventListener(
-        'advertisementreceived',
-        this.advertisementHandler,
-      );
-      const dev = this.watchedDevice as BluetoothDevice & {
-        unwatchAdvertisements?: () => void;
-      };
-      try {
-        dev.unwatchAdvertisements?.();
-      } catch {
-        // Best-effort.
-      }
-      this.advertisementHandler = null;
-      this.watchedDevice = null;
-    }
     this.statusListeners.clear();
     await this.transport.close();
   }
