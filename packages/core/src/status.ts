@@ -1,4 +1,9 @@
-import type { PrinterError, PrinterStatus } from '@thermal-label/contracts';
+import type {
+  BatteryStatus,
+  PrinterError,
+  PrinterStatus,
+  StatusDetail,
+} from '@thermal-label/contracts';
 
 /** Length in bytes of a well-formed RX status notification frame. */
 export const STATUS_NOTIFICATION_LENGTH = 3;
@@ -221,18 +226,60 @@ export function parseAdvertisingStatus(bytes: Uint8Array): AdvertisingStatus | n
 }
 
 /**
+ * Highest value the advertising-data `batteryLevel` bucket can take.
+ *
+ * The LT-200B reports battery as a coarse 0..3 bucket (advertising
+ * byte 2 bits 4-5). It carries no distinct "unknown" sentinel — an
+ * unreadable device yields `null` from {@link parseAdvertisingStatus}
+ * entirely, and the empty / too-low states are independent error bits
+ * (`BATTERY_TOO_LOW`, `BATTERY_LOW`). So the bucket normalises
+ * losslessly to a `0..1` fraction as `level / BATTERY_LEVEL_MAX`.
+ */
+export const BATTERY_LEVEL_MAX = 3;
+
+/**
  * Convenience: convert an `AdvertisingStatus` into a contracts
  * `PrinterStatus`. Useful for surfacing the broadcast state through
  * `PrinterAdapter.getStatus()` between print jobs.
+ *
+ * Carries the full broadcast state through to the contract surface:
+ *
+ * - `battery` — the coarse 0..3 level normalised to a `0..1`
+ *   `fraction` (`level / BATTERY_LEVEL_MAX`), plus the `charging`
+ *   flag. AC-powered drivers leave `battery` undefined; LetraTag
+ *   always populates it because the advertising packet always
+ *   carries the field.
+ * - `details` — driver-formatted diagnostic rows: cassette width and
+ *   the protocol revision. A consumer renders these verbatim.
  */
 export function advertisingToPrinterStatus(adv: AdvertisingStatus): PrinterStatus {
   const fatal = adv.errors.some(
     e => e.code === 'tape_jam' || e.code === 'cutter_jam' || e.code === 'battery_too_low',
   );
+
+  const battery: BatteryStatus = {
+    fraction: adv.batteryLevel / BATTERY_LEVEL_MAX,
+    charging: adv.charging,
+  };
+
+  const details: StatusDetail[] = [
+    {
+      label: 'Cassette width',
+      value: adv.cassetteWidthMm === null ? 'none' : `${String(adv.cassetteWidthMm)} mm`,
+      severity: adv.cassetteWidthMm === null ? 'warn' : 'info',
+    },
+    {
+      label: 'Protocol revision',
+      value: String(adv.revision),
+    },
+  ];
+
   return {
     ready: !fatal && !adv.busyLocked,
     mediaLoaded: adv.cassetteId !== 0,
     errors: adv.errors,
     rawBytes: adv.rawBytes,
+    details,
+    battery,
   };
 }

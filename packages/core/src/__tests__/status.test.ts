@@ -125,3 +125,56 @@ describe('parseAdvertisingStatus (manufacturer-data)', () => {
     expect(s.charging).toBe(true);
   });
 });
+
+describe('advertisingToPrinterStatus — battery + details', () => {
+  it('normalises the 0..3 battery bucket to a 0..1 fraction', () => {
+    // byte 2 = 0x30 → batteryLevel 3 (full) → fraction 1
+    const full = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x30]))!,
+    );
+    expect(full.battery?.fraction).toBe(1);
+
+    // byte 2 = 0x10 → batteryLevel 1 → fraction 1/3
+    const low = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x10]))!,
+    );
+    expect(low.battery?.fraction).toBeCloseTo(1 / 3);
+
+    // byte 2 = 0x00 → batteryLevel 0 → fraction 0
+    const empty = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x00]))!,
+    );
+    expect(empty.battery?.fraction).toBe(0);
+  });
+
+  it('carries the charging flag onto battery', () => {
+    // byte 2 = 0x70 → batteryLevel 3 + charging bit 6
+    const ps = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x10, 0x03, 0x70]))!,
+    );
+    expect(ps.battery?.charging).toBe(true);
+    expect(ps.battery?.fraction).toBe(1);
+  });
+
+  it('emits cassette-width and protocol-revision detail rows', () => {
+    // byte 0 = 0x20 → revision 2; byte 1 = 0x03 → 12mm cassette
+    const ps = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x20, 0x03, 0x30]))!,
+    );
+    const width = ps.details?.find(d => d.label === 'Cassette width');
+    expect(width?.value).toBe('12 mm');
+    expect(width?.severity).toBe('info');
+    const rev = ps.details?.find(d => d.label === 'Protocol revision');
+    expect(rev?.value).toBe('2');
+  });
+
+  it('flags an absent cassette in the width detail row', () => {
+    // byte 1 = 0x00 → cassetteId 0 → no cassette
+    const ps = advertisingToPrinterStatus(
+      parseAdvertisingStatus(new Uint8Array([0x10, 0x00, 0x30]))!,
+    );
+    const width = ps.details?.find(d => d.label === 'Cassette width');
+    expect(width?.value).toBe('none');
+    expect(width?.severity).toBe('warn');
+  });
+});
