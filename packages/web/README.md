@@ -1,5 +1,9 @@
 # @thermal-label/letratag-web
 
+[![CI](https://github.com/thermal-label/letratag/actions/workflows/ci.yml/badge.svg)](https://github.com/thermal-label/letratag/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@thermal-label/letratag-web.svg)](https://npmjs.com/package/@thermal-label/letratag-web)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
+
 Web Bluetooth driver for DYMO LetraTag **LT-200B** — connect and
 print labels directly from a Chromium-class browser via GATT.
 

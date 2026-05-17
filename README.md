@@ -1,22 +1,26 @@
 # `@thermal-label/letratag`
 
+> TypeScript-first DYMO LetraTag LT-200B driver — browser Web Bluetooth.
+
+[![CI](https://github.com/thermal-label/letratag/actions/workflows/ci.yml/badge.svg)](https://github.com/thermal-label/letratag/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/thermal-label/letratag/branch/main/graph/badge.svg)](https://codecov.io/gh/thermal-label/letratag)
+[![npm core](https://img.shields.io/npm/v/@thermal-label/letratag-core.svg?label=core)](https://npmjs.com/package/@thermal-label/letratag-core)
+[![npm web](https://img.shields.io/npm/v/@thermal-label/letratag-web.svg?label=web)](https://npmjs.com/package/@thermal-label/letratag-web)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Driver for the **DYMO LetraTag LT-200B**, a 12 mm Bluetooth LE
 handheld label printer with a custom chunked-GATT print protocol.
-This repo ships three workspace packages:
+This repo ships two workspace packages:
 
 - [`@thermal-label/letratag-core`](packages/core) — pure TypeScript
   protocol encoder, status parser, and media registry. Browser- and
   Node-safe; no transport coupling.
 - [`@thermal-label/letratag-web`](packages/web) — Web Bluetooth driver
   built on `@thermal-label/transport/web`.
-- [`@thermal-label/letratag-debug`](packages/debug) — single-page
-  Vue debug + verification harness, deployed to GitHub Pages on push
-  to `main`. **Not published to npm.**
 
-The deployed debug app lives at
-**https://thermal-label.github.io/letratag/** — a remote tester points
-their LT-200B-paired Chrome at it, runs the test pattern matrix, and
-exports the captured trace as a single JSON blob for triage.
+Verification runs on the shared thermal-label harness; a remote
+tester points their LT-200B-paired Chrome at it, runs the test
+pattern matrix, and exports the captured trace for triage.
 
 ## Layout
 
@@ -24,12 +28,10 @@ exports the captured trace as a single JSON blob for triage.
 packages/
   core/     — encoder, registry, status parser
   web/      — Web Bluetooth printer adapter
-  debug/    — Vue/Vite debug app (Pages-deployed)
 scripts/
   compile-data.mjs — emits data/*.json + src/*.generated.ts
 .github/workflows/
-  ci.yml      — typecheck / lint / test / build
-  pages.yml   — builds packages/debug, deploys to GitHub Pages
+  ci.yml      — typecheck / lint / format / test:coverage / build
 ```
 
 ## Workflow
@@ -39,21 +41,6 @@ pnpm install
 pnpm --filter @thermal-label/letratag-core compile-data
 pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
-
-## Deploying the debug page
-
-Pages publishes from the GitHub Actions deployment flow — there is
-**no `gh-pages` branch**. One-time setup in repo Settings:
-
-1. Settings → Pages → "Build and deployment" → Source: **GitHub Actions**.
-2. Push to `main`. The `pages.yml` workflow builds
-   `packages/debug` and deploys it.
-3. Subsequent deploys happen on any push touching `packages/core/**`,
-   `packages/web/**`, `packages/debug/**`, or the workflow file.
-   Use the "Run workflow" button on the Actions tab for manual redeploys.
-
-The deployed URL is shown on the workflow run summary
-(`steps.deployment.outputs.page_url`).
 
 ## Phase status
 
@@ -69,28 +56,21 @@ issue templates, Node BLE) live in [PLAN-2.md](PLAN-2.md).
 
 ## For the remote tester
 
-Open the deployed debug page at
-**https://thermal-label.github.io/letratag/** in Chrome or Edge
-on a desktop or Android device, then:
+Verification runs on the shared thermal-label harness in Chrome or
+Edge on a desktop or Android device:
 
-1. Click **Connect via Web Bluetooth**, pick your LT-200B from the
-   picker. The advertising-data panel should populate within a
-   second or two — check that `Cassette ID = 3 (12 mm)` matches
-   the loaded cassette.
+1. Connect via Web Bluetooth and pick your LT-200B from the picker.
 2. Run **T1** (single-pixel test) → expect a single dot at the
    leading edge of the tape, in the row closest to the cassette
-   opening. Click **Copy JSON** and paste into a new GitHub issue
-   along with a close-up photo.
+   opening. Export the diagnostics JSON and paste into a new GitHub
+   issue along with a close-up photo.
 3. Run **T2** (asymmetric rectangle) → expect a rectangle wider
    across the head than along the feed.
 4. Run **CUSTOM** with any short text → expect normal printing.
-5. If anything looks wrong, the **Encoder controls** panel exposes
-   the one remaining experimental knob (`MEDIA_TYPE` byte) — the
-   maintainer will ask you to flip it if needed.
 
 The diagnostics JSON contains everything needed to debug remotely:
-the captured TX/RX trace, the bitmap that was sent, the encoder
-settings used, and the printer's advertising-data snapshot.
+the captured TX/RX trace, the bitmap that was sent, and the encoder
+settings used.
 
 ## Supported hardware
 

@@ -1,5 +1,9 @@
 # @thermal-label/letratag-core
 
+[![CI](https://github.com/thermal-label/letratag/actions/workflows/ci.yml/badge.svg)](https://github.com/thermal-label/letratag/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@thermal-label/letratag-core.svg)](https://npmjs.com/package/@thermal-label/letratag-core)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
+
 Core protocol encoder, status parsers, and media / device registries
 for DYMO LetraTag **LT-200B** — a BLE-only handheld label printer.
 
