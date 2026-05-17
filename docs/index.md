@@ -34,7 +34,7 @@ features:
     linkText: Protocol guide
   - icon: 🖨️
     title: Hardware harness
-    details: Pair an LT-200B in the browser, run an identity probe, fire diagnostic prints, and submit a verification report — straight from the hosted harness at /harness/letratag/. The in-repo `packages/debug/` Vue app is the local-development equivalent.
+    details: Pair an LT-200B in the browser, run an identity probe, fire diagnostic prints, and submit a verification report — straight from the hosted harness at /harness/letratag/.
     link: https://thermal-label.github.io/harness/letratag/
     linkText: Open the harness
 ---

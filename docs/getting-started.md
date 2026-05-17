@@ -83,6 +83,4 @@ documents the byte layout.
 - [Protocol reference](./protocol/letratag-bt) — every byte on the wire.
 - [Hardware harness](https://thermal-label.github.io/harness/letratag/)
   — the hosted browser app for pairing, diagnostic prints, and
-  verification reports. The in-repo Vue debug app at
-  [`packages/debug/`](https://github.com/thermal-label/letratag/tree/main/packages/debug)
-  is the local-development equivalent.
+  verification reports.

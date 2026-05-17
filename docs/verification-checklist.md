@@ -13,23 +13,6 @@ follow the prompts. The harness pairs over BLE, prints the
 diagnostic, captures the advertising-data snapshot + RX-notification
 result, and prefills a GitHub issue when you're done.
 
-## In-repo debug app
-
-The repo ships its own Vue/Vite debug harness at
-[`packages/debug/`](https://github.com/thermal-label/letratag/tree/main/packages/debug):
-
-```bash
-git clone https://github.com/thermal-label/letratag
-cd letratag
-pnpm install
-pnpm --filter @thermal-label/letratag-debug dev
-```
-
-The app pairs over Web Bluetooth, dumps the observed full UUIDs,
-runs the standard diagnostic prints, and surfaces the
-advertising-data status + RX notification side-by-side. The output
-is suitable for pasting into a verification issue.
-
 ## Fallback
 
 Hand-rolled report? Open the
