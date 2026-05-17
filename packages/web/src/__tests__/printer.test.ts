@@ -176,4 +176,64 @@ describe('LetraTagPrinter (fake transport)', () => {
       expect(received).toBe(afterReplay);
     });
   });
+
+  describe('write serialization (plan 15 A3)', () => {
+    /**
+     * Transport that records write/read order with an async hop on
+     * every write, so two concurrent `print()` calls would interleave
+     * their writes if nothing serialised them.
+     */
+    class OrderRecordingTransport implements Transport {
+      readonly calls: { kind: 'write' | 'read' }[] = [];
+      connected = true;
+
+      async write(): Promise<void> {
+        this.calls.push({ kind: 'write' });
+        await Promise.resolve();
+        await Promise.resolve();
+      }
+
+      async read(length: number): Promise<Uint8Array> {
+        this.calls.push({ kind: 'read' });
+        await Promise.resolve();
+        // 3-byte success notification (1B 52 00).
+        return new Uint8Array([0x1b, 0x52, 0x00]).slice(0, length);
+      }
+
+      close(): Promise<void> {
+        this.connected = false;
+        return Promise.resolve();
+      }
+    }
+
+    it('serialises concurrent print() jobs — no interleaved writes', async () => {
+      const transport = new OrderRecordingTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+
+      // Kick two prints concurrently. Each print() is a burst of
+      // writes followed by a post-print status read. With the
+      // WriteSerializer, the first job's writes + read must all land
+      // before the second job's first write.
+      const a = printer.print(makeImage(20, 6), LT_PAPER_WHITE);
+      const b = printer.print(makeImage(20, 6), LT_PAPER_WHITE);
+      await Promise.all([a, b]);
+
+      // Each job ends with exactly one read. The first read marks the
+      // boundary of job A; every call after it belongs to job B and
+      // none of job B's writes appear before that boundary.
+      const readIndices = transport.calls
+        .map((c, i) => (c.kind === 'read' ? i : -1))
+        .filter(i => i >= 0);
+      expect(readIndices).toHaveLength(2);
+      const [firstReadIdx, secondReadIdx] = readIndices as [number, number];
+      // Job A: all writes precede its read.
+      expect(transport.calls.slice(0, firstReadIdx).every(c => c.kind === 'write')).toBe(true);
+      // Job B: its writes sit strictly between the two reads — no
+      // job-B write leaked into job A's span.
+      expect(
+        transport.calls.slice(firstReadIdx + 1, secondReadIdx).every(c => c.kind === 'write'),
+      ).toBe(true);
+      expect(secondReadIdx).toBe(transport.calls.length - 1);
+    });
+  });
 });

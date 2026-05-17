@@ -1,6 +1,7 @@
 import { renderImage, rotateBitmap, type RawImageData } from '@mbtech-nl/bitmap';
 import {
   pickRotation,
+  WriteSerializer,
   type MediaDescriptor,
   type PreviewOptions,
   type PreviewResult,
@@ -55,6 +56,15 @@ export class LetraTagPrinter implements PrinterAdapter {
    * this set — the single real status source on this driver.
    */
   private readonly statusListeners = new Set<(status: PrinterStatus) => void>();
+  /**
+   * Serialises `print()` — the only transport-touching method here.
+   * `getStatus()` is a pure cache read (no transport I/O) so there's
+   * no live collision today, but `print()` writes, and wrapping it
+   * keeps letratag uniform with the other drivers and future-proofs
+   * against a status path that gains transport I/O later (plan 15
+   * A3). See `WriteSerializer` in `@thermal-label/contracts`.
+   */
+  private readonly serializer = new WriteSerializer();
 
   constructor(device: LetraTagDevice, transport: Transport) {
     this.device = device;
@@ -69,7 +79,17 @@ export class LetraTagPrinter implements PrinterAdapter {
     return this.transport.connected;
   }
 
-  async print(
+  print(
+    image: RawImageData,
+    media?: MediaDescriptor,
+    options?: LetraTagPrintOptions,
+  ): Promise<void> {
+    // Whole-method wrap (plan 15 A3) — encoding is cheap relative to
+    // print time, so a held lock during encode is harmless.
+    return this.serializer.run(() => this.doPrint(image, media, options));
+  }
+
+  private async doPrint(
     image: RawImageData,
     media?: MediaDescriptor,
     options?: LetraTagPrintOptions,
