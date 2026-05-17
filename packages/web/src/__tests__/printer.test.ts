@@ -239,4 +239,138 @@ describe('LetraTagPrinter (fake transport)', () => {
       expect(secondReadIdx).toBe(transport.calls.length - 1);
     });
   });
+
+  describe('model / connected getters', () => {
+    it('model reflects the device name', () => {
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, new FakeTransport());
+      expect(printer.model).toBe(DEVICES.LT_200B.name);
+    });
+
+    it('connected mirrors the transport connection state', async () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      expect(printer.connected).toBe(true);
+      await transport.close();
+      expect(printer.connected).toBe(false);
+    });
+  });
+
+  describe('close()', () => {
+    it('clears status listeners and closes the transport', async () => {
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      let received = 0;
+      printer.onStatus(() => {
+        received += 1;
+      });
+      await new Promise<void>(r => setTimeout(r, 5)); // let the replay land
+      const afterReplay = received;
+
+      await printer.close();
+      expect(transport.connected).toBe(false);
+
+      // Listener set was cleared — a post-close print fans out to nobody.
+      transport.connected = true;
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
+      expect(received).toBe(afterReplay);
+    });
+  });
+
+  describe('print() status-read resilience', () => {
+    it('resolves and keeps the prior status when the RX read times out', async () => {
+      // FakeTransport.read rejects when rxQueue is empty — exercises
+      // the catch in doPrint (status-read failure must not throw).
+      const transport = new FakeTransport();
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      await expect(printer.print(makeImage(10, 6), LT_PAPER_WHITE)).resolves.toBeUndefined();
+      const status = await printer.getStatus();
+      // No notification ever arrived → lastStatus stays the empty default.
+      expect(status.ready).toBe(true);
+      expect(status.rawBytes.length).toBe(0);
+    });
+
+    it('getStatus before any print returns the empty default status', async () => {
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, new FakeTransport());
+      const s = await printer.getStatus();
+      expect(s.ready).toBe(true);
+      expect(s.mediaLoaded).toBe(true);
+      expect(s.errors).toHaveLength(0);
+    });
+  });
+
+  describe('print() defaults', () => {
+    it('falls back to DEFAULT_MEDIA when media is omitted', async () => {
+      const transport = new FakeTransport();
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      await expect(printer.print(makeImage(12, 6))).resolves.toBeUndefined();
+      expect(transport.writes.length).toBeGreaterThan(1);
+    });
+
+    it('honours an explicit rotate option', async () => {
+      const transport = new FakeTransport();
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      await expect(
+        printer.print(makeImage(12, 6), LT_PAPER_WHITE, { rotate: 90 }),
+      ).resolves.toBeUndefined();
+      expect(transport.writes.length).toBeGreaterThan(1);
+    });
+  });
+
+  describe('print() with a degenerate device entry', () => {
+    // The encoder context spreads `engine` and `mtu` conditionally;
+    // a device entry missing either exercises the empty-spread branch.
+    it('prints when the device has no engines and no link MTU', async () => {
+      const bareDevice = {
+        ...DEVICES.LT_200B,
+        engines: [],
+        transports: { 'bluetooth-gatt': { serviceUuid: 'x', namePrefix: 'Letratag ' } },
+      } as unknown as typeof DEVICES.LT_200B;
+      const transport = new FakeTransport();
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00]));
+      const printer = new LetraTagPrinter(bareDevice, transport);
+      await expect(printer.print(makeImage(12, 6), LT_PAPER_WHITE)).resolves.toBeUndefined();
+      expect(transport.writes.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('createPreview', () => {
+    it('returns assumed=false when media is supplied explicitly', async () => {
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, new FakeTransport());
+      const preview = await printer.createPreview(makeImage(10, 6), { media: LT_PAPER_WHITE });
+      expect(preview.assumed).toBe(false);
+      expect(preview.media).toBe(LT_PAPER_WHITE);
+    });
+  });
+
+  describe('onStatus fan-out isolation', () => {
+    it('a throwing subscriber does not block sibling subscribers', async () => {
+      const transport = new FakeTransport();
+      transport.rxQueue.push(new Uint8Array([0x1b, 0x52, 0x00])); // success
+      const printer = new LetraTagPrinter(DEVICES.LT_200B, transport);
+      let goodReceived = 0;
+      let badCalls = 0;
+      // The throwing subscriber throws ONLY on the post-print fan-out
+      // (notifyListeners has the swallowing try/catch). Its first call
+      // is the per-subscribe replay — that path has no catch, so a
+      // replay-time throw would surface as an unhandled rejection.
+      printer.onStatus(() => {
+        badCalls += 1;
+        if (badCalls > 1) throw new Error('bad subscriber');
+      });
+      printer.onStatus(() => {
+        goodReceived += 1;
+      });
+      await new Promise<void>(r => setTimeout(r, 5)); // let replays land
+      const beforePrint = goodReceived;
+      await printer.print(makeImage(10, 6), LT_PAPER_WHITE);
+      // The throwing subscriber's post-print error was swallowed by
+      // notifyListeners; the good subscriber still got the notification.
+      expect(badCalls).toBeGreaterThan(1);
+      expect(goodReceived).toBeGreaterThan(beforePrint);
+    });
+  });
 });

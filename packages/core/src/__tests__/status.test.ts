@@ -56,4 +56,16 @@ describe('parseStatus (RX notification)', () => {
       expect(parseStatus(frame(code)).mediaLoaded).toBe(true);
     }
   });
+
+  it('unmapped code (e.g. 99) → unknown error with the code echoed, not ready', () => {
+    const s = parseStatus(frame(99));
+    expect(s.ready).toBe(false);
+    expect(s.errors[0]?.code).toBe('unknown');
+    expect(s.errors[0]?.message).toBe('Unknown status code 99');
+  });
+
+  it('a frame longer than 3 bytes still parses on byte index 2', () => {
+    const s = parseStatus(new Uint8Array([0x1b, 0x52, 0x07, 0xff, 0xff]));
+    expect(s.errors[0]?.code).toBe('cassette_missing');
+  });
 });

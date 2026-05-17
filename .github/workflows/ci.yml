@@ -36,8 +36,12 @@ jobs:
         if: matrix.node == '24'
         run: pnpm lint
 
+      - name: Format check
+        if: matrix.node == '24'
+        run: pnpm prettier --check "packages/**/*.ts"
+
       - name: Test
-        run: pnpm test
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build
