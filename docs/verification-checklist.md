@@ -7,10 +7,11 @@ report issue — no manual transcription, no scattered captures.
 
 ## Browser harness
 
-> **Coming soon.** The hosted `letratag` harness is scaffolded but
-> not yet deployed. Once shipped it will live at
-> <https://thermal-label.github.io/harness/letratag/>. Until then,
-> use the in-repo debug app (below).
+Open <https://thermal-label.github.io/harness/letratag/> in a
+Chromium-class browser, click **Pair**, select your LetraTag, and
+follow the prompts. The harness pairs over BLE, prints the
+diagnostic, captures the advertising-data snapshot + RX-notification
+result, and prefills a GitHub issue when you're done.
 
 ## In-repo debug app
 

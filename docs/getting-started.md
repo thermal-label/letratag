@@ -81,7 +81,8 @@ documents the byte layout.
 - [Web guide](./web) — pairing, status, multi-copy jobs, React example.
 - [Core API](./core) — registries, encoder, offline preview.
 - [Protocol reference](./protocol/letratag-bt) — every byte on the wire.
-- [Hardware harness](https://github.com/thermal-label/letratag/tree/main/packages/debug)
-  — the in-repo Vue debug app used to drive bench verification.
-  A hosted version at `https://thermal-label.github.io/harness/letratag/`
-  is scaffolded but not yet deployed.
+- [Hardware harness](https://thermal-label.github.io/harness/letratag/)
+  — the hosted browser app for pairing, diagnostic prints, and
+  verification reports. The in-repo Vue debug app at
+  [`packages/debug/`](https://github.com/thermal-label/letratag/tree/main/packages/debug)
+  is the local-development equivalent.

@@ -287,12 +287,13 @@ server.
 
 ## Hardware harness
 
-Bench-only for now. The in-repo `packages/debug/` Vue app drives
-pairing, status snapshots, and ad-hoc protocol pokes — see
+The hosted org-wide harness at
+<https://thermal-label.github.io/harness/letratag/> wraps the same
+pairing + diagnostic-print flow as the sibling drivers' harness
+apps: pair an LT-200B in the browser, run an identity probe, fire
+diagnostic prints, and submit a verification report.
+
+For local-development work, the in-repo `packages/debug/` Vue app
+drives pairing, status snapshots, and ad-hoc protocol pokes — see
 [`packages/debug/`](https://github.com/thermal-label/letratag/tree/main/packages/debug)
 on GitHub.
-
-The hosted org-wide harness at
-<https://thermal-label.github.io/harness/letratag/> is scaffolded
-but not yet deployed; it'll wrap the same pairing + diagnostic-print
-flow as the sibling drivers' harness apps once shipped.
