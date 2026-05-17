@@ -10,6 +10,7 @@
   "plugin": ["typedoc-plugin-markdown"],
   "skipErrorChecking": true,
   "disableSources": true,
+  "excludeExternals": true,
   "readme": "none",
   "indexFormat": "table",
   "useCodeBlocks": true,
