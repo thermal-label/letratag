@@ -21,8 +21,8 @@ explicit caveats:
 1. **Bit packing.** The worked examples follow MSB-first per-byte
    packing plus per-rasterline byte reversal. They have not been
    byte-traced on a real print on every supported substrate.
-2. **Inferred semantics.** The `CUT` command direction (`0x30` vs
-   `0x31`), whether the trailing zero pad on `MEDIA_TYPE` is
+2. **Inferred semantics.** The `ESC p` command direction (`0x30` vs
+   `0x31`), whether the trailing zero pad on `ESC M` is
    load-bearing vs tolerated, whether the LT-200B chassis prints
    all 32 rows vs clips the edges, and whether `flags = 0xF0` is
    required vs the only observed value — these are best-guess reads.
@@ -35,16 +35,17 @@ explicit caveats:
 
 ## Frame geometry
 
-The protocol's `PRINT_DATA` height field is fixed at **32 head
-rows**. Labels shorter than 32 rows are centred within the 32-row
-frame by padding with zero-rasterlines at the top and bottom — there
-is no fixed printable-row count baked into the wire format. Whether
-all 32 rows physically print is a property of the print head, not
-the protocol.
+The protocol's `ESC D` height field is fixed at **32 head rows**.
+Labels shorter than 32 rows are centred within the 32-row frame by
+padding with zero-rasterlines at the top and bottom — there is no
+fixed printable-row count baked into the wire format. Whether all 32
+rows physically print is a property of the print head, not the
+protocol.
 
-The protocol vocabulary supports five tape widths (see
-[Cassette IDs](#cassette-ids)). The LT-200B chassis only accepts
-12 mm cassettes, but the wire format does not distinguish.
+The protocol vocabulary supports five tape widths (see the
+[cassette-ID table](#esc-m-—-set-cassette-type)). The LT-200B chassis
+only accepts 12 mm cassettes, but the wire format does not
+distinguish.
 
 ## BLE topology
 
@@ -70,8 +71,8 @@ should accept both.
 
 The `printShortCommandUUID` characteristic carries out-of-band
 commands that don't go through the chunked-print pipeline — most
-notably the stand-alone `START → MEDIA_TYPE → END` payload that
-records the loaded cassette in the printer's session state.
+notably the stand-alone `ESC s → ESC M → ESC Q` payload that records
+the loaded cassette in the printer's session state.
 
 ::: warning UUID body is variable, prefix is stable
 The full UUID **body** observed on the wire may differ across
@@ -114,7 +115,7 @@ layout is observable on the wire with any passive scan tool (e.g.
 ```
 byte 0  bits 4-7  revision           (protocol version)
         bits 0-3  reserved
-byte 1  bits 0-3  cassetteId         (1..5; see MEDIA_TYPE)
+byte 1  bits 0-3  cassetteId         (1..5; see ESC M)
         bit 4     carbonType
         bit 5     busyLocked         (job in progress)
         bits 6-7  spare
@@ -139,12 +140,12 @@ shape:
 HEADER[9]                            preamble + length + checksum
 [chunks of body, prefixed with 1-byte index, ≤500 bytes payload each]
   body =
-    START                              opens the job (jobId fixed)
-    NUMBER_OF_COPIES <N>               always emitted, default N=1
-    PRINT_DATA <bpp> <align> <w> <h> <pixels>
-    CUT <command>                      0x30 = cut now, 0x31 = suppress
-    STATUS                             requests the result notification
-    END                                closes the job
+    ESC s                              opens the job (job ID fixed)
+    ESC # <N>                          always emitted, default N=1
+    ESC D <bpp> <align> <w> <h> <pixels>
+    ESC p <command>                    0x30 = cut now, 0x31 = suppress
+    ESC A                              requests the result notification
+    ESC Q                              closes the job
 final chunk has MAGIC (12 34) appended after its payload
 ```
 
@@ -180,98 +181,47 @@ FF F0 12 34 <length0..3> <checksum>
 | Length   |  4 LE | Body length in bytes (excludes header and chunk index bytes). |
 | Checksum |     1 | `(sum of preceding 8 bytes) & 0xFF`                           |
 
-## Directive vocabulary
+## Opcode vocabulary
 
-The protocol's directive opcode is the second byte after a `0x1B`
-(`ESC`) prefix. Nine directives are defined; six are emitted in the
-normal print flow, two are auxiliary, and one (`PRINT_DENSITY`) is
-recognised by the firmware but has not been observed on the wire.
+Every opcode is a `0x1B` (`ESC`) prefix followed by one character
+byte. Nine opcodes are defined; six are emitted in the normal print
+flow, two are auxiliary, and one (`ESC C`) is recognised by the
+firmware but has not been observed on the wire.
 
-| Symbol                                                       | ASCII | Hex    | Length     | Bytes                                                                                       |
-| ------------------------------------------------------------ | ----- | -----: | ---------- | ------------------------------------------------------------------------------------------- |
-| [`START`](#start-—-open-job-1b-73-9a-02-00-00)               | `s`   | `0x73` | 6          | `[1B 73, ...4-byte jobId]`                                                                  |
-| [`NUMBER_OF_COPIES`](#number_of_copies-n-—-copy-count-1b-23-n) | `#` | `0x23` | 3          | `[1B 23, N]`                                                                                |
-| [`PRINT_DATA`](#print_data-bpp-align-w-h-pixels-—-bitmap-1b-44) | `D` | `0x44` | 12 + image | `[1B 44, bpp, align, ...u32le(w), ...u32le(h), ...image]`                                   |
-| [`CUT`](#cut-command-—-finalize-copy-1b-70-nn)               | `p`   | `0x70` | 3          | `[1B 70, cmd]` (`0x30` = cut, `0x31` = suppress)                                            |
-| [`FORM_FEED`](#form_feed-—-paper-feed-1b-45)                 | `E`   | `0x45` | 2          | `[1B 45]`                                                                                   |
-| [`STATUS`](#status-—-request-result-notification-1b-41)      | `A`   | `0x41` | 2          | `[1B 41]`                                                                                   |
-| [`END`](#end-—-close-job-1b-51)                              | `Q`   | `0x51` | 2          | `[1B 51]`                                                                                   |
-| [`MEDIA_TYPE`](#media_type-id-—-set-cassette-type-1b-4d-nn-00-00-00) | `M` | `0x4D` | 6    | `[1B 4D, mediaId, 00, 00, 00]` — three trailing zero pad bytes are part of the wire format. |
-| [`PRINT_DENSITY`](#print_density-—-declared-not-observed)    | `C`   | `0x43` | —          | recognised by the firmware; not observed on the wire.                                       |
+| Opcode                                   | Bytes               | Length     | Description                                                       |
+| ---------------------------------------- | ------------------- | ---------- | ----------------------------------------------------------------- |
+| [`ESC #`](#esc-—-copy-count)             | `1B 23 N`           | 3          | Copy count — 1-byte unsigned `N`.                                 |
+| [`ESC A`](#esc-a-—-request-job-status)   | `1B 41`             | 2          | Request the result notification.                                 |
+| [`ESC C`](#esc-c-—-print-density)        | `1B 43 …`           | —          | Print density — recognised by firmware, not observed on the wire. |
+| [`ESC D`](#esc-d-—-raster-bitmap)        | `1B 44 …`           | 12 + image | Raster bitmap.                                                    |
+| [`ESC E`](#esc-e-—-form-feed)            | `1B 45`             | 2          | Form feed — advance tape past the head.                           |
+| [`ESC M`](#esc-m-—-set-cassette-type)    | `1B 4D nn 00 00 00` | 6          | Set cassette type; three trailing zero pad bytes.                 |
+| [`ESC p`](#esc-p-—-cut)                  | `1B 70 nn`          | 3          | Cut (`0x30`) or suppress the cut (`0x31`).                        |
+| [`ESC Q`](#esc-q-—-close-job)            | `1B 51`             | 2          | Close the job.                                                    |
+| [`ESC s`](#esc-s-—-open-job)             | `1B 73 9A 02 00 00` | 6          | Open a print job; the job ID is a fixed constant.                 |
 
-## `START` — open job (`1B 73 9A 02 00 00`)
+The printer's status reply uses one further `ESC`-prefixed sequence,
+`ESC R` (`1B 52 <code>`), but it travels printer→host only and is
+documented under [`ESC A`](#esc-a-—-request-job-status).
 
-```
-1B 73 9A 02 00 00
-```
-
-The `9A 02 00 00` tail is the printer's expected "job ID" — a fixed
-constant on every observed job. It is not related to a queue or
-generation counter; emit it verbatim.
-
-## `NUMBER_OF_COPIES <N>` — copy count (`1B 23 N`)
+## `ESC #` — copy count
 
 ```
 1B 23 <N>
 ```
 
 A 1-byte unsigned copy count, default `1`. Always emitted, even for a
-single-copy job. Position is immediately after `START`, before
-`PRINT_DATA`.
+single-copy job. Position is immediately after `ESC s`, before
+`ESC D`.
 
-## `PRINT_DATA <bpp> <align> <w> <h> <pixels>` — bitmap (`1B 44 …`)
-
-```
-1B 44 <bpp> <align> <width0..3> <height0..3> <pixel bytes>
-```
-
-| Field    | Bytes | Value / meaning                                                          |
-| -------- | ----: | ------------------------------------------------------------------------ |
-| `bpp`    |     1 | **`0x81`** — fixed.                                                      |
-| `align`  |     1 | **`0x02`** — fixed.                                                      |
-| `width`  |  4 LE | Feed-direction column count (`= image.length / 4`).                      |
-| `height` |  4 LE | Across-head row count — **always `32`**.                                 |
-| pixels   |   var | `4 × width` bytes; column-major (one 4-byte head column per feed step).  |
-
-The image bytes encode the head columns in the order the feed
-mechanism advances. Each 4-byte column carries 32 bits — the bit
-packing is described in [Image encoding](#image-encoding).
-
-## `CUT <command>` — finalize copy (`1B 70 nn`)
-
-```
-1B 70 <command>
-```
-
-| `command`      | Meaning                                                                             |
-| :------------: | ----------------------------------------------------------------------------------- |
-| `0x30` (`'0'`) | Cut at the trailing edge of this copy. Used when copies = 1 or auto-cut is enabled. |
-| `0x31` (`'1'`) | Suppress the cut. Used between copies in a multi-copy job.                          |
-
-`CUT` takes the place of `FORM_FEED` in the LT-200B (Avatar) flow.
-Sibling LetraTag-family chassis that lack a cutter substitute
-`FORM_FEED` here instead.
-
-## `FORM_FEED` — paper feed (`1B 45`)
-
-```
-1B 45
-```
-
-Documented in the protocol vocabulary; **not emitted** on the
-LT-200B (Avatar) path. Sibling LetraTag-family chassis that lack a
-cutter substitute `FORM_FEED` for `CUT` to advance the tape past
-the head at end-of-job; the LT-200B reaches the same physical
-effect by sending `CUT 0x30`.
-
-## `STATUS` — request result notification (`1B 41`)
+## `ESC A` — request job status
 
 ```
 1B 41
 ```
 
-Always present in a print job, between `CUT` and `END`. Schedules a
-**3-byte** notification on the `printReplyUUID` characteristic when
+Always present in a print job, between `ESC p` and `ESC Q`. Schedules
+a **3-byte** notification on the `printReplyUUID` characteristic when
 the job completes (or fails). The notification format is:
 
 ```
@@ -300,17 +250,47 @@ The same characteristic may be polled at ~500 ms intervals during
 printing to drive a progress UI; the final notification on job
 completion arrives on the same channel.
 
-## `END` — close job (`1B 51`)
+## `ESC C` — print density
 
 ```
-1B 51
+1B 43 …
 ```
 
-Mandatory trailer. Without it, the printer holds the job in its
-buffer and the next write to TX appends rather than starting a new
-job.
+Recognised by the printer firmware (carried over from earlier
+LetraTag-family vocabulary) but has not been observed on the wire on
+any LT-200B job. Length and payload are unknown on this chassis.
 
-## `MEDIA_TYPE <id>` — set cassette type (`1B 4D nn 00 00 00`)
+## `ESC D` — raster bitmap
+
+```
+1B 44 <bpp> <align> <width0..3> <height0..3> <pixel bytes>
+```
+
+| Field    | Bytes | Value / meaning                                                          |
+| -------- | ----: | ------------------------------------------------------------------------ |
+| `bpp`    |     1 | **`0x81`** — fixed.                                                      |
+| `align`  |     1 | **`0x02`** — fixed.                                                      |
+| `width`  |  4 LE | Feed-direction column count (`= image.length / 4`).                      |
+| `height` |  4 LE | Across-head row count — **always `32`**.                                 |
+| pixels   |   var | `4 × width` bytes; column-major (one 4-byte head column per feed step).  |
+
+The image bytes encode the head columns in the order the feed
+mechanism advances. Each 4-byte column carries 32 bits — the bit
+packing is described in [Image encoding](#image-encoding).
+
+## `ESC E` — form feed
+
+```
+1B 45
+```
+
+Documented in the opcode vocabulary; **not emitted** on the
+LT-200B (Avatar) path. Sibling LetraTag-family chassis that lack a
+cutter substitute `ESC E` for `ESC p` to advance the tape past
+the head at end-of-job; the LT-200B reaches the same physical
+effect by sending `ESC p 0x30`.
+
+## `ESC M` — set cassette type
 
 ```
 1B 4D <cassetteId> 00 00 00
@@ -319,7 +299,7 @@ job.
 Six bytes (the trailing three zeros are part of the wire format).
 Records the cassette type the printer should expect in its session
 state. The printer prints correctly on every observed substrate
-without this directive — it is optional in the print flow and is
+without this opcode — it is optional in the print flow and is
 typically issued out-of-band on the short-command characteristic via
 the [stand-alone set-cassette-type payload](#stand-alone-set-cassette-type-payload).
 
@@ -338,15 +318,40 @@ LT-200B hardware accepts only 12 mm cassettes and broadcasts
 `cassetteId = 3` when one is loaded. The wider widths are reserved
 for sibling LetraTag-family chassis that share this protocol.
 
-## `PRINT_DENSITY` — declared, not observed
+## `ESC p` — cut
 
 ```
-1B 43 …
+1B 70 <command>
 ```
 
-Recognised by the printer firmware (carried over from earlier
-LetraTag-family vocabulary) but has not been observed on the wire on
-any LT-200B job. Length and payload are unknown on this chassis.
+| `command`      | Meaning                                                                             |
+| :------------: | ----------------------------------------------------------------------------------- |
+| `0x30` (`'0'`) | Cut at the trailing edge of this copy. Used when copies = 1 or auto-cut is enabled. |
+| `0x31` (`'1'`) | Suppress the cut. Used between copies in a multi-copy job.                          |
+
+`ESC p` takes the place of `ESC E` in the LT-200B (Avatar) flow.
+Sibling LetraTag-family chassis that lack a cutter substitute
+`ESC E` here instead.
+
+## `ESC Q` — close job
+
+```
+1B 51
+```
+
+Mandatory trailer. Without it, the printer holds the job in its
+buffer and the next write to TX appends rather than starting a new
+job.
+
+## `ESC s` — open job
+
+```
+1B 73 9A 02 00 00
+```
+
+The `9A 02 00 00` tail is the printer's expected job ID — a fixed
+constant on every observed job. It is not a queue handle or a
+generation counter; emit it verbatim.
 
 ## Image encoding
 
@@ -398,10 +403,8 @@ substrates), not a wire-format constraint.
 
 ## Chunking
 
-The body
-(`START + NUMBER_OF_COPIES + PRINT_DATA + CUT + STATUS + END`) is
-sliced into ≤500-byte windows. Each window is written as one BLE TX
-write:
+The body (`ESC s + ESC # + ESC D + ESC p + ESC A + ESC Q`) is sliced
+into ≤500-byte windows. Each window is written as one BLE TX write:
 
 ```
 <index> <slice...>                         — for non-final chunks
@@ -435,7 +438,7 @@ A separate, single-write payload tells the printer which cassette is
 loaded. It uses the `printShortCommandUUID` characteristic, not TX:
 
 ```
-HEADER[9] + START + MEDIA_TYPE <cassetteId> + END
+HEADER[9] + ESC s + ESC M <cassetteId> + ESC Q
 ```
 
 23 bytes total, **no chunking** — header + body are written as a
@@ -455,7 +458,7 @@ The hardware power button is a separate hard reset.
 
 - [`ysfchn/dymo-bluetooth`](https://github.com/ysfchn/dymo-bluetooth) —
   Python reverse-engineering of the LetraTag BT protocol. Source
-  for the directive vocabulary, header format, chunking skip at
+  for the opcode vocabulary, header format, chunking skip at
   index 27, and the result-code enum (codes 1–7 unverified).
 - [`alexhorn/lt200b`](https://github.com/alexhorn/lt200b) — earlier
   reverse-engineering effort; first to document the GATT topology
