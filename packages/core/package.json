@@ -1,6 +1,6 @@
 {
   "name": "@thermal-label/letratag-core",
-  "version": "0.0.0",
+  "version": "0.6.0",
   "description": "Core protocol, status parser, and media registry for the DYMO LetraTag LT-200B",
   "type": "module",
   "author": "Mannes Brak",
@@ -22,8 +22,19 @@
   "bugs": {
     "url": "https://github.com/thermal-label/letratag/issues"
   },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/mannes"
+    },
+    {
+      "type": "ko-fi",
+      "url": "https://ko-fi.com/mannes"
+    }
+  ],
   "files": [
     "dist",
+    "src",
     "data/devices.json",
     "data/media.json",
     "README.md"

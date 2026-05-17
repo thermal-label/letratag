@@ -1,6 +1,6 @@
 {
   "name": "@thermal-label/letratag-web",
-  "version": "0.0.0",
+  "version": "0.6.0",
   "description": "Web Bluetooth driver for the DYMO LetraTag LT-200B",
   "type": "module",
   "author": "Mannes Brak",
@@ -22,6 +22,16 @@
   "bugs": {
     "url": "https://github.com/thermal-label/letratag/issues"
   },
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/mannes"
+    },
+    {
+      "type": "ko-fi",
+      "url": "https://ko-fi.com/mannes"
+    }
+  ],
   "files": [
     "dist",
     "README.md"
@@ -34,11 +44,11 @@
   },
   "sideEffects": false,
   "main": "./dist/index.js",
-  "types": "./src/index.ts",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./src/index.ts"
+      "types": "./dist/index.d.ts"
     }
   },
   "scripts": {
@@ -50,14 +60,14 @@
   "peerDependencies": {
     "@thermal-label/contracts": "^0.6.0",
     "@thermal-label/letratag-core": "workspace:*",
-    "@thermal-label/transport": "^0.5.0"
+    "@thermal-label/transport": "^0.6.0"
   },
   "devDependencies": {
     "@mbtech-nl/bitmap": "^1.3.0",
     "@mbtech-nl/tsconfig": "^1.1.0",
     "@thermal-label/contracts": "^0.6.0",
     "@thermal-label/letratag-core": "workspace:*",
-    "@thermal-label/transport": "^0.5.0",
+    "@thermal-label/transport": "^0.6.0",
     "@types/node": "^22.0.0",
     "@types/web-bluetooth": "^0.0.20",
     "@vitest/coverage-v8": "^2.1.9",
