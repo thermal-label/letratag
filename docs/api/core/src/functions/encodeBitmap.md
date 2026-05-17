@@ -49,7 +49,7 @@ unchanged.
 
 | Parameter | Type |
 | ------ | ------ |
-| `bitmap` | [`LabelBitmap`](../interfaces/LabelBitmap.md) |
+| `bitmap` | [`LabelBitmap`](/contracts/api/interfaces/LabelBitmap) |
 | `crossFeed` | \{ `left`: `number`; `right`: `number`; \} |
 | `crossFeed.left` | `number` |
 | `crossFeed.right` | `number` |

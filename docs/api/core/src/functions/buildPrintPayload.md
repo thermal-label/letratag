@@ -20,7 +20,7 @@ override to poke at C5.
 
 | Parameter | Type |
 | ------ | ------ |
-| `bitmap` | [`LabelBitmap`](../interfaces/LabelBitmap.md) |
+| `bitmap` | [`LabelBitmap`](/contracts/api/interfaces/LabelBitmap) |
 | `options?` | `PrintPayloadOptions` |
 | `overrides?` | `__DebugEncoderOverrides` |
 

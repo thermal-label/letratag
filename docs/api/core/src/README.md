@@ -1,33 +1,11 @@
 # core/src
 
-## Classes
-
-| Class | Description |
-| ------ | ------ |
-| [MediaNotSpecifiedError](classes/MediaNotSpecifiedError.md) | `PrinterAdapter.print()` or `createPreview()` was called without a media argument and no detected media was available. |
-
 ## Interfaces
 
 | Interface | Description |
 | ------ | ------ |
-| [DeviceEntry](interfaces/DeviceEntry.md) | A device entry in a driver's registry. |
-| [DeviceRegistry](interfaces/DeviceRegistry.md) | A driver's full device registry. |
-| [~~DeviceSupport~~](interfaces/DeviceSupport.md) | Verification state for a device. |
-| [LabelBitmap](interfaces/LabelBitmap.md) | A 1-bit-per-pixel bitmap. Row-major, MSB-first within each byte. |
 | [LetraTagMedia](interfaces/LetraTagMedia.md) | DYMO LetraTag media descriptor. |
 | [LetraTagPrintOptions](interfaces/LetraTagPrintOptions.md) | Public LetraTag print options. |
-| [MediaDescriptor](interfaces/MediaDescriptor.md) | Base media descriptor. |
-| [PaletteEntry](interfaces/PaletteEntry.md) | One ink/foil colour the printer can place on the substrate. |
-| [PreviewOptions](interfaces/PreviewOptions.md) | Options for `PrinterAdapter.createPreview()`. |
-| [PreviewPlane](interfaces/PreviewPlane.md) | A single colour plane in a preview. |
-| [PreviewResult](interfaces/PreviewResult.md) | Result of `PrinterAdapter.createPreview()`. |
-| [PrintEngine](interfaces/PrintEngine.md) | A print engine — one printhead with one protocol. |
-| [PrinterAdapter](interfaces/PrinterAdapter.md) | High-level printer interface implemented by each driver family. |
-| [PrinterError](interfaces/PrinterError.md) | A single error reported by the printer. |
-| [PrinterStatus](interfaces/PrinterStatus.md) | Runtime status of a printer. |
-| [PrintOptions](interfaces/PrintOptions.md) | Options for a single `PrinterAdapter.print()` call. |
-| [RawImageData](interfaces/RawImageData.md) | Raw RGBA image data, compatible with browser ImageData and @napi-rs/canvas ImageData. |
-| [Transport](interfaces/Transport.md) | A bidirectional byte channel to a printer. |
 
 ## Type Aliases
 
@@ -35,9 +13,6 @@
 | ------ | ------ |
 | [LetraTagDevice](type-aliases/LetraTagDevice.md) | DYMO LetraTag device entry. Alias for the contracts `DeviceEntry` narrowed to `family: 'letratag'`. |
 | [LetraTagMaterial](type-aliases/LetraTagMaterial.md) | LT cassette substrate family. Picker / preview UX hint — the rasterizer does not branch on this. |
-| [RotateDirection](type-aliases/RotateDirection.md) | Direction the printer family rotates landscape input. |
-| [SupportStatus](type-aliases/SupportStatus.md) | Stored verification rung — what a maintainer has directly observed. |
-| [TransportType](type-aliases/TransportType.md) | Wire-protocol-only transport types. |
 
 ## Variables
 
@@ -81,6 +56,3 @@
 | [encodeSetCassetteType](functions/encodeSetCassetteType.md) | Build the stand-alone `MEDIA_TYPE`-only write list. Used by the driver's `setCassetteType()` path (writes to the `printShortCommandUUID` characteristic). |
 | [findMediaBySku](functions/findMediaBySku.md) | Find a media entry by vendor SKU. LT cassettes ship under many regional part numbers (US 91XXX vs EU S07XXXXX); this helper does the lookup against `MediaDescriptor.skus`. |
 | [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
-| [pickRotation](functions/pickRotation.md) | Pick the rotation value to pass to `renderImage` / `renderMultiPlaneImage`. |
-| [renderImage](functions/renderImage.md) | Convert RGBA pixel data to a packed 1bpp bitmap. |
-| [renderText](functions/renderText.md) | Render an ASCII string into a packed 1bpp bitmap using the bundled font. |

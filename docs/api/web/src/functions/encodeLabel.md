@@ -30,12 +30,12 @@ to Phase-1 — the path used by every test in this package.
 
 | Parameter | Type |
 | ------ | ------ |
-| `bitmap` | [`LabelBitmap`](../../../core/src/interfaces/LabelBitmap.md) |
+| `bitmap` | [`LabelBitmap`](/contracts/api/interfaces/LabelBitmap) |
 | `options?` | [`LetraTagPrintOptions`](../interfaces/LetraTagPrintOptions.md) |
 | `overrides?` | `__DebugEncoderOverrides` |
-| `context?` | \{ `engine?`: [`PrintEngine`](../../../core/src/interfaces/PrintEngine.md); `media?`: [`MediaDescriptor`](../../../core/src/interfaces/MediaDescriptor.md); `mtu?`: `number`; \} |
-| `context.engine?` | [`PrintEngine`](../../../core/src/interfaces/PrintEngine.md) |
-| `context.media?` | [`MediaDescriptor`](../../../core/src/interfaces/MediaDescriptor.md) |
+| `context?` | \{ `engine?`: [`PrintEngine`](/contracts/api/interfaces/PrintEngine); `media?`: [`MediaDescriptor`](/contracts/api/interfaces/MediaDescriptor); `mtu?`: `number`; \} |
+| `context.engine?` | [`PrintEngine`](/contracts/api/interfaces/PrintEngine) |
+| `context.media?` | [`MediaDescriptor`](/contracts/api/interfaces/MediaDescriptor) |
 | `context.mtu?` | `number` |
 
 ## Returns

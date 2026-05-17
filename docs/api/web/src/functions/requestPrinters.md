@@ -19,8 +19,8 @@ engine role.
 
 | Parameter | Type |
 | ------ | ------ |
-| `opts` | [`ConnectOptions`](../type-aliases/ConnectOptions.md) |
+| `opts` | [`ConnectOptions`](/contracts/api/type-aliases/ConnectOptions) |
 
 ## Returns
 
-`Promise`\<`Readonly`\<`Record`\<`string`, [`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md)\>\>\>
+`Promise`\<`Readonly`\<`Record`\<`string`, [`PrinterAdapter`](/contracts/api/interfaces/PrinterAdapter)\>\>\>

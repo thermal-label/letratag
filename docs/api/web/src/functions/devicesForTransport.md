@@ -12,8 +12,8 @@ harness shell.
 
 | Parameter | Type |
 | ------ | ------ |
-| `transport` | [`TransportType`](../../../core/src/type-aliases/TransportType.md) |
+| `transport` | [`TransportType`](/contracts/api/type-aliases/TransportType) |
 
 ## Returns
 
-readonly [`DeviceEntry`](../../../core/src/interfaces/DeviceEntry.md)[]
+readonly [`DeviceEntry`](/contracts/api/interfaces/DeviceEntry)[]

@@ -4,7 +4,6 @@
 
 | Class | Description |
 | ------ | ------ |
-| [DeviceIdentificationRequiredError](classes/DeviceIdentificationRequiredError.md) | A driver-web `requestPrinters(opts)` factory opened the browser picker and got a port/device back, but couldn't decide which registry entry it corresponds to. The picker may have offered an unidentifiable serial port (Web Serial doesn't expose BT device names) or the picked USB device's VID/PID didn't match anything in the driver's registry. |
 | [LetraTagPrinter](classes/LetraTagPrinter.md) | `PrinterAdapter` for the LT-200B over Web Bluetooth. |
 
 ## Interfaces
@@ -20,10 +19,8 @@
 
 | Type Alias | Description |
 | ------ | ------ |
-| [ConnectOptions](type-aliases/ConnectOptions.md) | Options for the unified driver-web `requestPrinters(opts)` factory. |
 | [LetraTagDevice](type-aliases/LetraTagDevice.md) | DYMO LetraTag device entry. Alias for the contracts `DeviceEntry` narrowed to `family: 'letratag'`. |
 | [LetraTagMaterial](type-aliases/LetraTagMaterial.md) | LT cassette substrate family. Picker / preview UX hint — the rasterizer does not branch on this. |
-| [PrinterAdapterMap](type-aliases/PrinterAdapterMap.md) | Map from engine role → PrinterAdapter for a connected device. |
 
 ## Variables
 
@@ -46,27 +43,3 @@
 | [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
 | [~~requestPrinter~~](functions/requestPrinter.md) | Open the browser BLE picker, pair with an LT-200B, and resolve the GATT service / characteristics. |
 | [requestPrinters](functions/requestPrinters.md) | Unified browser-picker factory. |
-
-## References
-
-### PrinterAdapter
-
-Re-exports [PrinterAdapter](../../core/src/interfaces/PrinterAdapter.md)
-
-***
-
-### PrinterError
-
-Re-exports [PrinterError](../../core/src/interfaces/PrinterError.md)
-
-***
-
-### PrinterStatus
-
-Re-exports [PrinterStatus](../../core/src/interfaces/PrinterStatus.md)
-
-***
-
-### Transport
-
-Re-exports [Transport](../../core/src/interfaces/Transport.md)

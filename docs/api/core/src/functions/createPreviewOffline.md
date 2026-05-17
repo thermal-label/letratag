@@ -17,9 +17,9 @@ omitted.
 
 | Parameter | Type | Default value |
 | ------ | ------ | ------ |
-| `image` | [`RawImageData`](../interfaces/RawImageData.md) | `undefined` |
+| `image` | [`RawImageData`](/contracts/api/interfaces/RawImageData) | `undefined` |
 | `media` | [`LetraTagMedia`](../interfaces/LetraTagMedia.md) | `DEFAULT_MEDIA` |
 
 ## Returns
 
-[`PreviewResult`](../interfaces/PreviewResult.md)
+[`PreviewResult`](/contracts/api/interfaces/PreviewResult)

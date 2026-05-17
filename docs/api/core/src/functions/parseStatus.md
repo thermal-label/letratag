@@ -49,4 +49,4 @@ rather than throwing.
 
 ## Returns
 
-[`PrinterStatus`](../interfaces/PrinterStatus.md)
+[`PrinterStatus`](/contracts/api/interfaces/PrinterStatus)
