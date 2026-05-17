@@ -4,6 +4,7 @@ export { renderImage, renderText } from '@mbtech-nl/bitmap';
 export type {
   DeviceEntry,
   DeviceRegistry,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- retained for consumers during alias transition; remove with DeviceSupport cleanup PR
   DeviceSupport,
   MediaDescriptor,
   PreviewOptions,
@@ -32,13 +33,7 @@ export { DEVICE_REGISTRY_DATA, DEVICES } from './devices.js';
  */
 export const PROTOCOLS: ReadonlySet<string> = new Set(['letratag-bt']);
 
-export {
-  DEFAULT_MEDIA,
-  LT_PAPER_WHITE,
-  MEDIA,
-  MEDIA_LIST,
-  findMediaBySku,
-} from './media.js';
+export { DEFAULT_MEDIA, LT_PAPER_WHITE, MEDIA, MEDIA_LIST, findMediaBySku } from './media.js';
 export { ROTATE_DIRECTION } from './orientation.js';
 export {
   BODY_CHUNK,
@@ -62,11 +57,7 @@ export {
   encodeLabel,
   encodeSetCassetteType,
 } from './protocol.js';
-export {
-  STATUS_NOTIFICATION_LENGTH,
-  STATUS_REQUEST,
-  parseStatus,
-} from './status.js';
+export { STATUS_NOTIFICATION_LENGTH, STATUS_REQUEST, parseStatus } from './status.js';
 export { createPreviewOffline } from './preview.js';
 export type {
   LetraTagDevice,

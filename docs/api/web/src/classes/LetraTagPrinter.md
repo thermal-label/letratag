@@ -7,16 +7,12 @@ the constructor is exported so the harness can inject a `MockTransport`
 with a real device entry, mirroring the labelmanager-web /
 labelwriter-web shape.
 
-Two channels of status are wired in:
-
-1. **Post-print notification** — the printer emits a 3-byte
-   `[1B 52 code]` reply after each job, parsed via `parseStatus`.
-   The driver stores this as the last-known status.
-2. **Advertising data** — the BLE advertising packets carry a
-   3-byte payload with cassette presence + battery + busy +
-   error flags. The discovery layer collects this when the device
-   is scanned; the driver folds the latest snapshot into
-   `getStatus()` so callers get a recent view between print jobs.
+Status has a single real source: the printer emits a 3-byte
+`[1B 52 code]` reply after each print job, parsed via `parseStatus`.
+The driver stores this as the last-known status and fans it out to
+`onStatus` subscribers. The LT-200B exposes no battery, cassette, or
+live-status telemetry over BLE — there is no out-of-job status
+channel.
 
 ## Implements
 
@@ -179,10 +175,9 @@ For offline preview without a live connection, use the static
 getStatus(): Promise<PrinterStatus>;
 ```
 
-Return the printer's last-known status. Prefers the advertising-data
-snapshot when available (it covers cassette + battery + errors and
-updates continuously without a print job); falls back to the most
-recent post-print notification, then to a default empty status.
+Return the printer's last-known status — the most recent
+post-print notification, or a default empty status before the
+first print. The LT-200B has no out-of-job status channel.
 
 #### Returns
 
@@ -191,6 +186,40 @@ recent post-print notification, then to a default empty status.
 #### Implementation of
 
 [`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`getStatus`](../../../core/src/interfaces/PrinterAdapter.md#getstatus)
+
+***
+
+### onStatus()
+
+```ts
+onStatus(cb: (status: PrinterStatus) => void): () => void;
+```
+
+Subscribe to status updates. The single real push source is the
+post-print notification — the 3-byte `[1B 52 code]` reply on the
+RX characteristic at the end of each print job, parsed via
+[parseStatus](../functions/parseStatus.md).
+
+The current cached status is replayed immediately on subscribe
+so the harness shell's status pill resolves quickly without
+waiting for the next event. Returns an unsubscribe function.
+
+Per plan 11 §`onStatus` parity + §Letratag specifics — letratag
+has real push so this is not a polling shim.
+
+#### Parameters
+
+| Parameter | Type |
+| ------ | ------ |
+| `cb` | (`status`: [`PrinterStatus`](../../../core/src/interfaces/PrinterStatus.md)) => `void` |
+
+#### Returns
+
+() => `void`
+
+#### Implementation of
+
+[`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`onStatus`](../../../core/src/interfaces/PrinterAdapter.md#onstatus)
 
 ***
 
@@ -245,25 +274,3 @@ MediaNotSpecifiedError if no media is known.
 #### Implementation of
 
 [`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md).[`print`](../../../core/src/interfaces/PrinterAdapter.md#print)
-
-***
-
-### setAdvertisingStatus()
-
-```ts
-setAdvertisingStatus(adv: AdvertisingStatus | null): void;
-```
-
-Update the printer's known advertising state. Called by the
-discovery layer with the most recent manufacturer-data payload.
-Use [parseAdvertisingStatus](../functions/parseAdvertisingStatus.md) to construct the argument.
-
-#### Parameters
-
-| Parameter | Type |
-| ------ | ------ |
-| `adv` | [`AdvertisingStatus`](../interfaces/AdvertisingStatus.md) \| `null` |
-
-#### Returns
-
-`void`

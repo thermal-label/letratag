@@ -26,7 +26,10 @@ class FakeTransport implements Transport {
   }
 }
 
-function makeImage(width: number, height: number): {
+function makeImage(
+  width: number,
+  height: number,
+): {
   width: number;
   height: number;
   data: Uint8Array;

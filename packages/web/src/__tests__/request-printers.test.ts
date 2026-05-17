@@ -39,9 +39,8 @@ describe('DeviceIdentificationRequiredError shape', () => {
   // ambiguity), but contracts is re-exported through letratag-web so
   // harness code can rely on a single import.
   it('is constructible and carries candidates + continueWith', () => {
-    const err = new DeviceIdentificationRequiredError(
-      devicesForTransport('bluetooth-gatt'),
-      () => Promise.resolve({}),
+    const err = new DeviceIdentificationRequiredError(devicesForTransport('bluetooth-gatt'), () =>
+      Promise.resolve({}),
     );
     expect(err).toBeInstanceOf(Error);
     expect(err.candidates.length).toBeGreaterThan(0);

@@ -355,6 +355,7 @@ export function buildPrintPayload(
   if (leadingPadBytes > 0) segments.push(new Uint8Array(leadingPadBytes));
   segments.push(bodyImage);
   if (trailingPadBytes > 0) segments.push(new Uint8Array(trailingPadBytes));
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- length===1 guard above proves [0] exists
   const image = segments.length === 1 ? segments[0]! : concat(segments);
   const feedCount = bitmap.widthPx + deadZone.leading + trailingFeedDots;
   const printData = buildPrintData(feedCount, PROTOCOL_HEAD_FRAME, image);
@@ -430,9 +431,7 @@ export function chunkPayload(
   // Reserve one byte for the chunk-index prefix; cap by both the
   // protocol max (BODY_CHUNK) and the BLE link MTU when known.
   const maxBody =
-    options?.mtu !== undefined
-      ? Math.max(1, Math.min(BODY_CHUNK, options.mtu - 1))
-      : BODY_CHUNK;
+    options?.mtu !== undefined ? Math.max(1, Math.min(BODY_CHUNK, options.mtu - 1)) : BODY_CHUNK;
   const chunkCount = Math.max(1, Math.ceil(payload.length / maxBody));
   if (chunkCount > 0xff) {
     throw new Error(`payload exceeds 1-byte chunk index space (${String(chunkCount)} > 255)`);

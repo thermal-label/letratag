@@ -2,11 +2,7 @@
 import type { LabelBitmap } from '@mbtech-nl/bitmap';
 import { encodeLabel } from '@thermal-label/letratag-core/debug';
 import type { __DebugEncoderOverrides } from '@thermal-label/letratag-core/debug';
-import {
-  DEVICES,
-  parseStatus,
-  STATUS_NOTIFICATION_LENGTH,
-} from '@thermal-label/letratag-core';
+import { DEVICES, parseStatus, STATUS_NOTIFICATION_LENGTH } from '@thermal-label/letratag-core';
 import { computed, onMounted, ref, watch, type Ref } from 'vue';
 import {
   bitmapToBase64,
@@ -196,7 +192,9 @@ function onRxNotification(event: Event): void {
   const target = event.target as BluetoothRemoteGATTCharacteristic;
   const view = target.value;
   if (!view) return;
-  const bytes = new Uint8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength));
+  const bytes = new Uint8Array(
+    view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength),
+  );
   if (bytes.length >= STATUS_NOTIFICATION_LENGTH) {
     const status = parseStatus(bytes);
     lastStatus.value = status;
@@ -447,13 +445,13 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     <header>
       <h1>LetraTag LT-200B — Debug & Verification Harness</h1>
       <p class="muted">
-        Pair your LT-200B over Web Bluetooth, run the test pattern matrix, and
-        export a single JSON blob covering everything the maintainer needs to
-        debug remotely. The encoder follows the official DYMO LetraTag Connect
-        app byte-for-byte, so prints should "just work" — confirm with the
-        T1 single-pixel test and report any deviation. File reports against
-        the
-        <a href="https://github.com/thermal-label/letratag/issues" target="_blank" rel="noopener">letratag repo</a>.
+        Pair your LT-200B over Web Bluetooth, run the test pattern matrix, and export a single JSON
+        blob covering everything the maintainer needs to debug remotely. The encoder follows the
+        official DYMO LetraTag Connect app byte-for-byte, so prints should "just work" — confirm
+        with the T1 single-pixel test and report any deviation. File reports against the
+        <a href="https://github.com/thermal-label/letratag/issues" target="_blank" rel="noopener"
+          >letratag repo</a
+        >.
       </p>
     </header>
 
@@ -468,27 +466,35 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         <span v-if="connection" class="tag ok">connected</span>
       </div>
       <dl v-if="connection" class="kv">
-        <dt>Device name</dt><dd>{{ connection.device.name || '(unnamed)' }}</dd>
-        <dt>Service UUID</dt><dd>{{ connection.serviceUuid }}</dd>
-        <dt>TX UUID (printRequest)</dt><dd>{{ connection.txUuid }}</dd>
-        <dt>RX UUID (printReply)</dt><dd>{{ connection.rxUuid }}</dd>
-        <dt>Short-command UUID</dt><dd>{{ connection.shortCmdUuid }}</dd>
-        <dt>User-Agent</dt><dd>{{ userAgent }}</dd>
+        <dt>Device name</dt>
+        <dd>{{ connection.device.name || '(unnamed)' }}</dd>
+        <dt>Service UUID</dt>
+        <dd>{{ connection.serviceUuid }}</dd>
+        <dt>TX UUID (printRequest)</dt>
+        <dd>{{ connection.txUuid }}</dd>
+        <dt>RX UUID (printReply)</dt>
+        <dd>{{ connection.rxUuid }}</dd>
+        <dt>Short-command UUID</dt>
+        <dd>{{ connection.shortCmdUuid }}</dd>
+        <dt>User-Agent</dt>
+        <dd>{{ userAgent }}</dd>
       </dl>
     </section>
 
     <!-- Test pattern selector -->
     <section class="panel">
       <h2>Test pattern</h2>
-      <div class="row" style="flex-direction: column; align-items: stretch; gap: 6px;">
+      <div class="row" style="flex-direction: column; align-items: stretch; gap: 6px">
         <label v-for="p in PATTERNS" :key="p.id" class="radio">
           <input type="radio" :value="p.id" v-model="selected" />
-          <span><strong>{{ p.label }}</strong></span>
+          <span
+            ><strong>{{ p.label }}</strong></span
+          >
         </label>
       </div>
       <p v-if="selectedMeta" class="muted">{{ selectedMeta.description }}</p>
       <div v-if="selected === 'CUSTOM'" class="row">
-        <label style="flex: 1;">
+        <label style="flex: 1">
           <span class="muted">Text</span>
           <input type="text" v-model="customText" />
         </label>
@@ -500,13 +506,26 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
       <h2>
         <button
           type="button"
-          style="border:none;background:none;color:inherit;text-transform:inherit;font:inherit;letter-spacing:inherit;padding:0;cursor:pointer"
+          style="
+            border: none;
+            background: none;
+            color: inherit;
+            text-transform: inherit;
+            font: inherit;
+            letter-spacing: inherit;
+            padding: 0;
+            cursor: pointer;
+          "
           @click="showEncoderControls = !showEncoderControls"
         >
           Encoder controls {{ showEncoderControls ? '▾' : '▸' }}
         </button>
       </h2>
-      <div v-if="showEncoderControls" class="row" style="flex-direction: column; align-items: stretch; gap: 10px;">
+      <div
+        v-if="showEncoderControls"
+        class="row"
+        style="flex-direction: column; align-items: stretch; gap: 10px"
+      >
         <div class="row">
           <label class="checkbox">
             <input type="checkbox" v-model="autoCut" /> autoCut (CUT byte 0x30 vs 0x31)
@@ -514,22 +533,28 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         </div>
         <div class="row">
           <span class="muted">copies</span>
-          <input type="number" min="1" max="255" v-model.number="copies" style="max-width: 100px;" />
+          <input type="number" min="1" max="255" v-model.number="copies" style="max-width: 100px" />
         </div>
         <div class="row">
           <label class="checkbox">
             <input type="checkbox" v-model="emitMediaType" />
             emit MEDIA_TYPE byte
           </label>
-          <input type="number" min="0" max="5" v-model.number="mediaTypeByte" :disabled="!emitMediaType" style="max-width: 100px;" />
+          <input
+            type="number"
+            min="0"
+            max="5"
+            v-model.number="mediaTypeByte"
+            :disabled="!emitMediaType"
+            style="max-width: 100px"
+          />
         </div>
         <p class="muted">
-          The encoder is now byte-for-byte the official DYMO LetraTag Connect
-          app — axis order, bit packing, and the chunk-index quirk are all
-          fixed. <code>autoCut</code> flips between cut (0x30) and no-cut
-          (0x31). <code>copies</code> sets the NUMBER_OF_COPIES directive
-          (1..255). <code>MEDIA_TYPE</code> is normally not emitted; toggle
-          it to test whether 0..5 changes anything.
+          The encoder is now byte-for-byte the official DYMO LetraTag Connect app — axis order, bit
+          packing, and the chunk-index quirk are all fixed. <code>autoCut</code> flips between cut
+          (0x30) and no-cut (0x31). <code>copies</code> sets the NUMBER_OF_COPIES directive
+          (1..255). <code>MEDIA_TYPE</code> is normally not emitted; toggle it to test whether 0..5
+          changes anything.
         </p>
       </div>
     </section>
@@ -538,9 +563,8 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     <section class="panel">
       <h2>Bitmap preview</h2>
       <p class="muted">
-        {{ bitmap?.widthPx }} × {{ bitmap?.heightPx }} pixels (head-aligned;
-        feed × head). The encoder pads the head dimension to 32 by adding
-        zero-rasterlines top and bottom.
+        {{ bitmap?.widthPx }} × {{ bitmap?.heightPx }} pixels (head-aligned; feed × head). The
+        encoder pads the head dimension to 32 by adding zero-rasterlines top and bottom.
       </p>
       <canvas ref="previewCanvas" class="bitmap-canvas" />
     </section>
@@ -554,9 +578,17 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         </button>
         <span v-if="statusMessage" :class="['tag', statusKind]">{{ statusMessage }}</span>
       </div>
-      <div v-if="lastStatus" class="row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+      <div
+        v-if="lastStatus"
+        class="row"
+        style="flex-direction: column; align-items: stretch; gap: 4px"
+      >
         <span class="muted">Last RX status</span>
-        <code>ready={{ lastStatus.ready }} mediaLoaded={{ lastStatus.mediaLoaded }} errors=[{{ lastStatus.errors.map(e => e.code).join(', ') }}]</code>
+        <code
+          >ready={{ lastStatus.ready }} mediaLoaded={{ lastStatus.mediaLoaded }} errors=[{{
+            lastStatus.errors.map(e => e.code).join(', ')
+          }}]</code
+        >
       </div>
     </section>
 
@@ -575,7 +607,11 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
           <span>[{{ ev.t.toString().padStart(6, ' ') }}ms] {{ ev.dir.toUpperCase() }}</span>
           <span v-if="ev.message"> {{ ev.message }}</span>
           <span v-if="ev.hex"> {{ ev.hex }}</span>
-          <span v-if="ev.parsed"> ⇒ ready={{ ev.parsed.ready }} errors=[{{ ev.parsed.errors.map(e => e.code).join(', ') }}]</span>
+          <span v-if="ev.parsed">
+            ⇒ ready={{ ev.parsed.ready }} errors=[{{
+              ev.parsed.errors.map(e => e.code).join(', ')
+            }}]</span
+          >
         </div>
       </div>
     </section>
@@ -584,22 +620,29 @@ const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
     <section class="panel">
       <h2>Diagnostics export</h2>
       <p class="muted">
-        Schema version 1 — stable across sessions. The encoder is now pinned
-        to the official-app's byte stream; encoder fields in the export are
-        kept for backward-compat. Fill the reporter / cassette fields before
-        exporting.
+        Schema version 1 — stable across sessions. The encoder is now pinned to the official-app's
+        byte stream; encoder fields in the export are kept for backward-compat. Fill the reporter /
+        cassette fields before exporting.
       </p>
-      <div class="row" style="flex-direction: column; align-items: stretch; gap: 6px;">
+      <div class="row" style="flex-direction: column; align-items: stretch; gap: 6px">
         <div class="row">
           <input type="text" placeholder="Reporter name" v-model="reporterName" />
           <input type="text" placeholder="GitHub handle (optional)" v-model="reporterGithub" />
         </div>
         <div class="row">
           <input type="text" placeholder="Cassette SKU (e.g. 91200)" v-model="cassetteSku" />
-          <input type="text" placeholder="Material (paper / plastic / metallic / …)" v-model="cassetteMaterial" />
+          <input
+            type="text"
+            placeholder="Material (paper / plastic / metallic / …)"
+            v-model="cassetteMaterial"
+          />
           <input type="text" placeholder="Background colour" v-model="cassetteBackground" />
         </div>
-        <textarea rows="3" placeholder="Notes — what did you see? Any anomalies?" v-model="exportNotes" />
+        <textarea
+          rows="3"
+          placeholder="Notes — what did you see? Any anomalies?"
+          v-model="exportNotes"
+        />
         <input type="file" multiple accept="image/*" @change="onPhotoChange" />
       </div>
       <div class="row">

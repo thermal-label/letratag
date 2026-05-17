@@ -1,4 +1,4 @@
-# Function: requestPrinter()
+# ~~Function: requestPrinter()~~
 
 ```ts
 function requestPrinter(options?: RequestPrinterOptions): Promise<PairResult>;
@@ -30,3 +30,11 @@ what's actually on the wire.
 ## Returns
 
 `Promise`\<[`PairResult`](../interfaces/PairResult.md)\>
+
+## Deprecated
+
+For harness use, prefer
+  `requestPrinters({ transport: 'bluetooth-gatt' })` — the new
+  factory returns a `PrinterAdapterMap` matching the contracts
+  shape. `requestPrinter()` is retained as the BLE-debug escape
+  hatch (carries observed UUIDs / link MTU for the debug app).

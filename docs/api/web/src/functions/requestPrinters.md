@@ -1,28 +1,26 @@
 # Function: requestPrinters()
 
 ```ts
-function requestPrinters(options?: RequestPrinterOptions): Promise<Record<string, LetraTagPrinter>>;
+function requestPrinters(opts: ConnectOptions): Promise<Readonly<Record<string, PrinterAdapter>>>;
 ```
 
-Show the browser's Bluetooth picker and return one `PrinterAdapter`
-per drivable engine on the selected device, keyed by engine role.
+Unified browser-picker factory.
 
-The LT-200B is single-engine, so this returns a 1-key record keyed
-by the device's `engines[0].role` (`'primary'`). Mirrors the
-labelmanager / labelwriter `requestPrinters()` factories so harness
-adapters can stay symmetric across driver families — the harness
-shell consumes the per-engine map directly.
+The LT-200B is single-engine and BLE-GATT-only, so this is a
+one-transport dispatch — the `transport` discriminator must be
+`'bluetooth-gatt'`. Other values throw. Auto-identifies by service
+UUID prefix (DECISIONS.md D4); the LT_200B is the only candidate,
+so `deviceKey` is never required.
 
-The `PairResult` plumbing (full observed UUIDs, advertising-data
-snapshot) is dropped on this path; callers that need the BLE
-diagnostic surface should use `requestPrinter()` instead.
+Returns a 1-key `PrinterAdapterMap` keyed by the device's primary
+engine role.
 
 ## Parameters
 
 | Parameter | Type |
 | ------ | ------ |
-| `options?` | [`RequestPrinterOptions`](../interfaces/RequestPrinterOptions.md) |
+| `opts` | [`ConnectOptions`](../type-aliases/ConnectOptions.md) |
 
 ## Returns
 
-`Promise`\<`Record`\<`string`, [`LetraTagPrinter`](../classes/LetraTagPrinter.md)\>\>
+`Promise`\<`Readonly`\<`Record`\<`string`, [`PrinterAdapter`](../../../core/src/interfaces/PrinterAdapter.md)\>\>\>

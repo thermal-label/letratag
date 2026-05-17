@@ -51,11 +51,7 @@ export const STATUS_REQUEST: Uint8Array = new Uint8Array([0x1b, 0x41]);
  * rather than throwing.
  */
 export function parseStatus(bytes: Uint8Array): PrinterStatus {
-  if (
-    bytes.length < STATUS_NOTIFICATION_LENGTH ||
-    bytes[0] !== 0x1b ||
-    bytes[1] !== 0x52
-  ) {
+  if (bytes.length < STATUS_NOTIFICATION_LENGTH || bytes[0] !== 0x1b || bytes[1] !== 0x52) {
     return {
       ready: false,
       mediaLoaded: true,

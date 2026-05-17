@@ -29,12 +29,12 @@ try {
 
 Web Bluetooth is required. Tested:
 
-| Platform     | Chrome | Edge | Firefox | Safari |
-| ------------ | :----: | :--: | :-----: | :----: |
-| Linux        | ✓      | ✓    | ✗       | n/a    |
-| Windows      | ✓      | ✓    | ✗       | n/a    |
-| macOS        | ✓      | ✓    | ✗       | ✗      |
-| Android      | ✓      | ✓    | ✗       | n/a    |
+| Platform | Chrome | Edge | Firefox | Safari |
+| -------- | :----: | :--: | :-----: | :----: |
+| Linux    |   ✓    |  ✓   |    ✗    |  n/a   |
+| Windows  |   ✓    |  ✓   |    ✗    |  n/a   |
+| macOS    |   ✓    |  ✓   |    ✗    |   ✗    |
+| Android  |   ✓    |  ✓   |    ✗    |  n/a   |
 
 Firefox does not implement Web Bluetooth. Safari does not support it
 on macOS. iOS Safari has no Web Bluetooth — pair through a third-party
@@ -49,7 +49,7 @@ paired connection:
 ```ts
 import { scanAdvertising } from '@thermal-label/letratag-web';
 
-const stop = await scanAdvertising((status) => {
+const stop = await scanAdvertising(status => {
   console.log('cassette loaded:', status.cassetteLoaded);
   console.log('battery level:', status.batteryLevel, '/ 3');
 });
@@ -67,11 +67,13 @@ For the hardware harness (verification flow):
 (bench-only today; hosted bundle pending).
 
 <!-- HARDWARE_TABLE:START -->
+
 **1 devices** — 0 verified · 0 partial · 0 broken · 1 untested
 
-| Model | Key | USB PID | Transports | Status |
-| --- | --- | --- | --- | --- |
-| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | — | BT LE | ⏳ untested |
+| Model                                                                         | Key       | USB PID | Transports | Status      |
+| ----------------------------------------------------------------------------- | --------- | ------- | ---------- | ----------- |
+| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | —       | BT LE      | ⏳ untested |
 
 Click any model to open its detail page on the docs site, where engines, supported media, and verification reports live. The same data backs the [interactive cross-driver table](https://thermal-label.github.io/hardware/).
+
 <!-- HARDWARE_TABLE:END -->

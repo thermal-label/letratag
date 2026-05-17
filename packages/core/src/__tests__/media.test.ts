@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_MEDIA,
-  LT_PAPER_WHITE,
-  MEDIA,
-  MEDIA_LIST,
-  findMediaBySku,
-} from '../media.js';
+import { DEFAULT_MEDIA, LT_PAPER_WHITE, MEDIA, MEDIA_LIST, findMediaBySku } from '../media.js';
 
 describe('media registry', () => {
   it('exposes every entry by id and as a list', () => {

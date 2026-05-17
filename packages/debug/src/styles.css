@@ -8,7 +8,14 @@
   --warn: #f0b03c;
   --err: #ff6b6b;
   --ok: #79d672;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 * {
@@ -44,7 +51,13 @@ h2 {
   text-transform: uppercase;
 }
 
-p, li, label, button, input, select, textarea {
+p,
+li,
+label,
+button,
+input,
+select,
+textarea {
   font-size: 14px;
 }
 
@@ -92,7 +105,10 @@ button.primary {
   border-color: var(--accent);
 }
 
-input[type="text"], input[type="number"], textarea, select {
+input[type='text'],
+input[type='number'],
+textarea,
+select {
   background: var(--panel-2);
   color: var(--fg);
   border: 1px solid #30343b;
@@ -103,9 +119,12 @@ input[type="text"], input[type="number"], textarea, select {
   flex: 1 1 auto;
 }
 
-textarea { resize: vertical; }
+textarea {
+  resize: vertical;
+}
 
-label.checkbox, label.radio {
+label.checkbox,
+label.radio {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -124,7 +143,7 @@ dl.kv dt {
 
 dl.kv dd {
   margin: 0;
-  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
   font-size: 12px;
   word-break: break-all;
 }
@@ -132,17 +151,25 @@ dl.kv dd {
 .trace {
   max-height: 320px;
   overflow: auto;
-  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  font-family: ui-monospace, 'Cascadia Code', Menlo, monospace;
   font-size: 12px;
   background: #0a0b0d;
   border-radius: 6px;
   padding: 10px;
 }
 
-.trace .row-tx { color: #b1d8ff; }
-.trace .row-rx { color: var(--ok); }
-.trace .row-info { color: var(--muted); }
-.trace .row-err { color: var(--err); }
+.trace .row-tx {
+  color: #b1d8ff;
+}
+.trace .row-rx {
+  color: var(--ok);
+}
+.trace .row-info {
+  color: var(--muted);
+}
+.trace .row-err {
+  color: var(--err);
+}
 
 .bitmap-canvas {
   image-rendering: pixelated;
@@ -158,8 +185,16 @@ dl.kv dd {
   font-size: 11px;
   letter-spacing: 0.04em;
 }
-.tag.ok  { color: var(--ok); }
-.tag.warn{ color: var(--warn); }
-.tag.err { color: var(--err); }
+.tag.ok {
+  color: var(--ok);
+}
+.tag.warn {
+  color: var(--warn);
+}
+.tag.err {
+  color: var(--err);
+}
 
-.muted { color: var(--muted); }
+.muted {
+  color: var(--muted);
+}

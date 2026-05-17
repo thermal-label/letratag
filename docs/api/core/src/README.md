@@ -10,7 +10,6 @@
 
 | Interface | Description |
 | ------ | ------ |
-| [AdvertisingStatus](interfaces/AdvertisingStatus.md) | - |
 | [DeviceEntry](interfaces/DeviceEntry.md) | A device entry in a driver's registry. |
 | [DeviceRegistry](interfaces/DeviceRegistry.md) | A driver's full device registry. |
 | [~~DeviceSupport~~](interfaces/DeviceSupport.md) | Verification state for a device. |
@@ -34,7 +33,6 @@
 
 | Type Alias | Description |
 | ------ | ------ |
-| [CassetteId](type-aliases/CassetteId.md) | Cassette tape size enum, broadcast in advertising data and accepted as the `MEDIA_TYPE` directive payload. |
 | [LetraTagDevice](type-aliases/LetraTagDevice.md) | DYMO LetraTag device entry. Alias for the contracts `DeviceEntry` narrowed to `family: 'letratag'`. |
 | [LetraTagMaterial](type-aliases/LetraTagMaterial.md) | LT cassette substrate family. Picker / preview UX hint — the rasterizer does not branch on this. |
 | [RotateDirection](type-aliases/RotateDirection.md) | Direction the printer family rotates landscape input. |
@@ -45,9 +43,7 @@
 
 | Variable | Description |
 | ------ | ------ |
-| [ADVERTISING\_STATUS\_LENGTH](variables/ADVERTISING_STATUS_LENGTH.md) | Length in bytes of a well-formed advertising-data payload. |
 | [BODY\_CHUNK](variables/BODY_CHUNK.md) | Protocol-level upper bound on body bytes per BLE write. Used as the ceiling when no `mtu` is provided to `chunkPayload`; effective chunk size is `min(BODY_CHUNK, mtu - 1)`. |
-| [CASSETTE\_WIDTH\_MM](variables/CASSETTE_WIDTH_MM.md) | Mapping from the `cassetteId` enum (1..5) to the physical tape width in millimetres. ID 0 is treated as "no cassette" — the official app does not document the no-cassette code, but a zero-valued field has no plausible mapping. Use the advertising data's error flags (TAPE_JAM, etc.) and the `busyLocked` / presence signals together to decide whether a cassette is actually loaded. |
 | [CUT\_AT\_END](variables/CUT_AT_END.md) | `CUT` command byte for "cut at the end of this copy". |
 | [CUT\_SUPPRESS](variables/CUT_SUPPRESS.md) | `CUT` command byte for "suppress cut (intermediate copy)". |
 | [DEFAULT\_MEDIA](variables/DEFAULT_MEDIA.md) | - |
@@ -66,13 +62,12 @@
 | [START](variables/START.md) | `[0x1B, 0x73, 154, 2, 0, 0]` — start of a print job. |
 | [STATUS](variables/STATUS.md) | `[0x1B, 0x41]` — request a status notification. |
 | [STATUS\_NOTIFICATION\_LENGTH](variables/STATUS_NOTIFICATION_LENGTH.md) | Length in bytes of a well-formed RX status notification frame. |
-| [STATUS\_REQUEST](variables/STATUS_REQUEST.md) | Status request directive — `[0x1B, 0x41]`. Embedded in every print payload between `CUT` and `END`; on-the-wire observation does not show it sent stand-alone (the host instead reads BLE advertising data for out-of-job state — see [parseAdvertisingStatus](functions/parseAdvertisingStatus.md)). |
+| [STATUS\_REQUEST](variables/STATUS_REQUEST.md) | Status request directive — `[0x1B, 0x41]`. Embedded in every print payload between `CUT` and `END`; on-the-wire observation does not show it sent stand-alone. |
 
 ## Functions
 
 | Function | Description |
 | ------ | ------ |
-| [advertisingToPrinterStatus](functions/advertisingToPrinterStatus.md) | Convenience: convert an `AdvertisingStatus` into a contracts `PrinterStatus`. Useful for surfacing the broadcast state through `PrinterAdapter.getStatus()` between print jobs. |
 | [buildCut](functions/buildCut.md) | `[0x1B, 0x70, command]` — cut directive. |
 | [buildHeader](functions/buildHeader.md) | 9-byte header. Layout: |
 | [buildMediaType](functions/buildMediaType.md) | `[0x1B, 0x4D, mediaId, 0x00, 0x00, 0x00]` — set cassette type. 6 bytes total; the trailing three zeros are part of the observed wire format. |
@@ -85,7 +80,6 @@
 | [encodeLabel](functions/encodeLabel.md) | Encode a complete LetraTag print job into the ordered list of BLE writes. The transport calls `write()` with each entry in turn. |
 | [encodeSetCassetteType](functions/encodeSetCassetteType.md) | Build the stand-alone `MEDIA_TYPE`-only write list. Used by the driver's `setCassetteType()` path (writes to the `printShortCommandUUID` characteristic). |
 | [findMediaBySku](functions/findMediaBySku.md) | Find a media entry by vendor SKU. LT cassettes ship under many regional part numbers (US 91XXX vs EU S07XXXXX); this helper does the lookup against `MediaDescriptor.skus`. |
-| [parseAdvertisingStatus](functions/parseAdvertisingStatus.md) | Parse the LT-200B's BLE advertising-data manufacturer payload. |
 | [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
 | [pickRotation](functions/pickRotation.md) | Pick the rotation value to pass to `renderImage` / `renderMultiPlaneImage`. |
 | [renderImage](functions/renderImage.md) | Convert RGBA pixel data to a packed 1bpp bitmap. |

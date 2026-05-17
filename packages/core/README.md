@@ -31,7 +31,7 @@ const bitmap = renderText('Hello LetraTag', { headDots: 32 });
 const payload = encodeLabel(bitmap, device.engines[0], {
   copies: 1,
   cut: true,
-  mtu: 247,             // BLE 4.2 negotiated link MTU
+  mtu: 247, // BLE 4.2 negotiated link MTU
 });
 
 // Ship `payload` to the printer's write-without-response TX
@@ -62,11 +62,13 @@ Full TypeDoc reference, getting-started guide, and the wire protocol:
 [thermal-label.github.io/letratag/core](https://thermal-label.github.io/letratag/core).
 
 <!-- HARDWARE_TABLE:START -->
+
 **1 devices** — 0 verified · 0 partial · 0 broken · 1 untested
 
-| Model | Key | USB PID | Transports | Status |
-| --- | --- | --- | --- | --- |
-| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | — | BT LE | ⏳ untested |
+| Model                                                                         | Key       | USB PID | Transports | Status      |
+| ----------------------------------------------------------------------------- | --------- | ------- | ---------- | ----------- |
+| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | —       | BT LE      | ⏳ untested |
 
 Click any model to open its detail page on the docs site, where engines, supported media, and verification reports live. The same data backs the [interactive cross-driver table](https://thermal-label.github.io/hardware/).
+
 <!-- HARDWARE_TABLE:END -->

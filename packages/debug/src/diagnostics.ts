@@ -93,9 +93,7 @@ export function bytesToHex(bytes: Uint8Array, max = 64): string {
   return hex.join(' ');
 }
 
-export function statusToParsed(
-  status: PrinterStatus,
-): NonNullable<TraceEvent['parsed']> {
+export function statusToParsed(status: PrinterStatus): NonNullable<TraceEvent['parsed']> {
   return {
     ready: status.ready,
     errors: status.errors.map(e => ({ code: e.code, message: e.message })),

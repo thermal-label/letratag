@@ -8,7 +8,6 @@ MTU, raw `BluetoothDevice` for diagnostics export).
 
 | Property | Type | Description |
 | ------ | ------ | ------ |
-| <a id="property-advertisingstatus"></a> `advertisingStatus` | [`AdvertisingStatus`](AdvertisingStatus.md) \| `null` | Most recent advertising-data status snapshot captured during the scan that found the device, when available. The driver also holds this internally — see `LetraTagPrinter.setAdvertisingStatus`. |
 | <a id="property-device"></a> `device` | `BluetoothDevice` | - |
 | <a id="property-linkmtu"></a> `linkMtu` | `number` \| `null` | Best-effort link MTU; `null` when the browser doesn't expose it. |
 | <a id="property-printer"></a> `printer` | [`LetraTagPrinter`](../classes/LetraTagPrinter.md) | - |

@@ -83,9 +83,7 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
   const services = await server.getPrimaryServices();
   const matched = services.find(s => s.uuid.startsWith(SERVICE_PREFIX));
   if (!matched) {
-    throw new Error(
-      `No GATT service starting with "${SERVICE_PREFIX}" on the connected device`,
-    );
+    throw new Error(`No GATT service starting with "${SERVICE_PREFIX}" on the connected device`);
   }
   const serviceUuid = matched.uuid;
   const tail = serviceUuid.slice(8);

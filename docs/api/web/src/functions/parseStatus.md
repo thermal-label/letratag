@@ -33,13 +33,13 @@ best-effort enum pending hardware confirmation.
        triggers — only the under-minimum-columns case is
        bench-explained.
   6 → battery too low to print.
-  7 → cassette missing — **prefer the advertising-data
-       cassetteId field for cassette-presence checks**.
+  7 → cassette missing.
 
-`mediaLoaded` is always `true` — the cassette signal lives in
-advertising data, not in this frame. `detectedMedia` is always
-`undefined`. A malformed frame returns a `PrinterStatus` with a
-`'protocol'` error rather than throwing.
+`mediaLoaded` is always `true` — the LT-200B firmware reports
+cassette presence only via this post-print frame's code 7, with no
+out-of-job channel. `detectedMedia` is always `undefined`. A
+malformed frame returns a `PrinterStatus` with a `'protocol'` error
+rather than throwing.
 
 ## Parameters
 
