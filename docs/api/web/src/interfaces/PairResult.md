@@ -1,8 +1,8 @@
 # Interface: PairResult
 
-Result of a successful pairing — the printer adapter plus the
-BLE plumbing the debug harness needs (observed full UUIDs, link
-MTU, raw `BluetoothDevice` for diagnostics export).
+Result of a successful pairing — the printer adapter plus the BLE
+plumbing the debug harness needs (observed UUIDs, link MTU, raw
+`BluetoothDevice`).
 
 ## Properties
 

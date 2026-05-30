@@ -12,9 +12,9 @@ import { LetraTagPrinter } from './printer.js';
 const SERVICE_PREFIX = 'be3dd650-';
 
 /**
- * Result of a successful pairing — the printer adapter plus the
- * BLE plumbing the debug harness needs (observed full UUIDs, link
- * MTU, raw `BluetoothDevice` for diagnostics export).
+ * Result of a successful pairing — the printer adapter plus the BLE
+ * plumbing the debug harness needs (observed UUIDs, link MTU, raw
+ * `BluetoothDevice`).
  */
 export interface PairResult {
   printer: LetraTagPrinter;
@@ -32,36 +32,28 @@ export interface PairResult {
 export interface RequestPrinterOptions {
   /**
    * Override the device-name filter passed to
-   * `navigator.bluetooth.requestDevice`. Useful when the friend's
-   * unit advertises a non-default name. Falls back to the
-   * registry's `namePrefix` when omitted.
+   * `navigator.bluetooth.requestDevice`. Falls back to the registry's
+   * `namePrefix` when omitted.
    */
   namePrefix?: string;
 }
 
 /**
- * Open the browser BLE picker, pair with an LT-200B, and resolve
- * the GATT service / characteristics.
+ * Open the browser BLE picker, pair with an LT-200B, and resolve the
+ * GATT service / characteristics. Returns the printer adapter plus
+ * diagnostic plumbing (observed UUIDs, best-effort link MTU).
  *
- * Discovery follows DECISIONS.md D4 — the registry's canonical
- * UUIDs filter the picker, but the actual TX / RX / aux UUIDs are
- * **derived from the observed service UUID's tail** (alexhorn's
- * convention). This tolerates UUID-body variance across firmware
- * revisions or device units. `WebBluetoothTransport.request()`
- * doesn't fit because it asks for characteristics by canonical UUID
- * before it sees the actual service tail; we do the picker + service
- * resolution + characteristic derivation here, then wrap via
+ * Discovery derives TX / RX / aux UUIDs from the observed service-tail
+ * rather than requesting canonical UUIDs (DECISIONS.md D4). This is why
+ * `WebBluetoothTransport.request()` doesn't fit — it asks for
+ * characteristics by canonical UUID before it sees the actual service
+ * tail; we resolve + derive here, then wrap via
  * `WebBluetoothTransport.fromCharacteristics()`.
  *
- * Returns the printer adapter + diagnostic plumbing (full observed
- * UUIDs, link MTU best-effort) so the debug harness can export
- * what's actually on the wire.
- *
  * @deprecated For harness use, prefer
- *   `requestPrinters({ transport: 'bluetooth-gatt' })` — the new
- *   factory returns a `PrinterAdapterMap` matching the contracts
- *   shape. `requestPrinter()` is retained as the BLE-debug escape
- *   hatch (carries observed UUIDs / link MTU for the debug app).
+ *   `requestPrinters({ transport: 'bluetooth-gatt' })`. `requestPrinter()`
+ *   is retained as the BLE-debug escape hatch (carries observed UUIDs /
+ *   link MTU for the debug app).
  */
 export async function requestPrinter(options?: RequestPrinterOptions): Promise<PairResult> {
   const ble = DEVICES.LT_200B.transports['bluetooth-gatt'];
@@ -115,16 +107,12 @@ export async function requestPrinter(options?: RequestPrinterOptions): Promise<P
 }
 
 /**
- * Unified browser-picker factory.
+ * Unified browser-picker factory. Returns a 1-key `PrinterAdapterMap`
+ * keyed by the device's primary engine role.
  *
- * The LT-200B is single-engine and BLE-GATT-only, so this is a
- * one-transport dispatch — the `transport` discriminator must be
- * `'bluetooth-gatt'`. Other values throw. Auto-identifies by service
- * UUID prefix (DECISIONS.md D4); the LT_200B is the only candidate,
- * so `deviceKey` is never required.
- *
- * Returns a 1-key `PrinterAdapterMap` keyed by the device's primary
- * engine role.
+ * The LT-200B is single-engine and BLE-GATT-only, so `transport` must
+ * be `'bluetooth-gatt'` and `deviceKey` is never required (LT_200B is
+ * the only candidate). Other values throw.
  */
 export async function requestPrinters(opts: ConnectOptions): Promise<PrinterAdapterMap> {
   if (opts.transport !== 'bluetooth-gatt') {

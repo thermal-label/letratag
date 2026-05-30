@@ -53,8 +53,8 @@ sources and legal posture. Current hardware status for the LT-200B
 is in the [Supported hardware](#supported-hardware) table below
 (generated from the device registry) and on the
 [hardware docs page](docs/hardware.md) — see also
-[DECISIONS.md](DECISIONS.md). Phase-2 items (replay CLI, hardware
-issue templates, Node BLE) live in [PLAN-2.md](PLAN-2.md).
+[DECISIONS.md](DECISIONS.md). Node BLE support, a replay CLI, and
+hardware issue templates are deferred to a later phase.
 
 ## For the remote tester
 
