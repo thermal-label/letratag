@@ -154,7 +154,6 @@ describe('LetraTagPrinter (fake transport)', () => {
         id: 'LT-paper-12-white',
         name: 'White paper 12 mm',
         targetModels: ['LT_200B'],
-        tapeWidthMm: 12,
         material: 'paper',
         background: 'white',
         text: 'black',

@@ -22,19 +22,16 @@ export type LetraTagMaterial =
  *
  * Extends the contracts base `MediaDescriptor`. Tape is always
  * continuous — `heightMm` is omitted. Every LT cassette is 12 mm
- * wide (the only width the LT-200B chassis accepts) and 30 dots
- * printable; both literal-typed.
+ * wide; that width lives in the spec'd `widthMm` (the only width
+ * the LT-200B chassis accepts).
  *
- * `printableDots: 30` is a chassis fact, not a wire-format fact —
- * the protocol always frames 32 rows; the LT-200B's print head
- * appears to image all 32, but prior public encoders reported that
- * the top and bottom rows clip on certain substrates. Treat 30 as
- * the safe authoring height for now and verify on hardware.
+ * Printable head height is a chassis fact, not a per-cassette one,
+ * so it lives on the engine (`PrintEngine.headDots`) and the
+ * `PRINTABLE_DOTS` constant in `./protocol.ts` — not on this media
+ * type.
  */
 export interface LetraTagMedia extends MediaDescriptor {
   type: 'tape';
-  tapeWidthMm: 12;
-  printableDots: 30;
   /** LT substrate family. */
   material?: LetraTagMaterial;
   /** Printed ink colour, named (the only ink the cartridge carries). */

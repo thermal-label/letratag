@@ -9,11 +9,9 @@ describe('media registry', () => {
     }
   });
 
-  it('every entry is 12 mm tape with 30 printable dots', () => {
+  it('every entry is 12 mm tape', () => {
     for (const m of MEDIA_LIST) {
       expect(m.widthMm).toBe(12);
-      expect(m.tapeWidthMm).toBe(12);
-      expect(m.printableDots).toBe(30);
       expect(m.type).toBe('tape');
       expect(m.category).toBe('cartridge');
       expect(m.targetModels).toContain('letratag');

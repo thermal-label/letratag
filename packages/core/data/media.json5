@@ -1,10 +1,11 @@
 // LT cassette registry for the LetraTag driver.
 //
-// Every entry: 12 mm tape width, 30 printable dots across the head,
-// single ink colour ("text"), single substrate colour
-// ("background"). Per-cassette roll length varies (most ~4 m;
-// iron-on is 2 m) but `heightMm` stays undefined per contracts —
-// continuous tape has variable per-label length.
+// Every entry: 12 mm tape width (`widthMm`), single ink colour
+// ("text"), single substrate colour ("background"). Per-cassette
+// roll length varies (most ~4 m; iron-on is 2 m) but `heightMm`
+// stays undefined per contracts — continuous tape has variable
+// per-label length. Printable head height (30 dots) is an engine
+// fact (`headDots` / the `PRINTABLE_DOTS` const), not a media field.
 //
 // Driver-side fields beyond the contracts `MediaDescriptor` shape:
 //   - `material`   — LT substrate family (paper / plastic /
@@ -12,9 +13,6 @@
 //   - `text`       — printed colour, named (the only ink the
 //                    cartridge carries).
 //   - `background` — substrate colour, named.
-//   - `tapeWidthMm` — 12 (literal-typed, mirrors labelmanager
-//                    precedent for the encoder lookup).
-//   - `printableDots` — 30 (matches engine headDots).
 //
 // SKUs include every observed US (91XXX) and EU (S07XXXXX) part
 // number for the same physical tape; downstream consumers
@@ -34,8 +32,6 @@
     material: 'paper',
     text: 'black',
     background: 'white',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / White ─────────────────────────────────────
@@ -52,8 +48,6 @@
     material: 'plastic',
     text: 'black',
     background: 'white',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Pearl White (TBV) ────────────────────────
@@ -70,8 +64,6 @@
     material: 'plastic',
     text: 'black',
     background: 'pearl-white',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Yellow ───────────────────────────────────
@@ -88,8 +80,6 @@
     material: 'plastic',
     text: 'black',
     background: 'yellow',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Red ──────────────────────────────────────
@@ -106,8 +96,6 @@
     material: 'plastic',
     text: 'black',
     background: 'red',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Green ────────────────────────────────────
@@ -124,8 +112,6 @@
     material: 'plastic',
     text: 'black',
     background: 'green',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Blue ─────────────────────────────────────
@@ -142,8 +128,6 @@
     material: 'plastic',
     text: 'black',
     background: 'blue',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Plastic / Clear ────────────────────────────────────
@@ -160,8 +144,6 @@
     material: 'plastic-clear',
     text: 'black',
     background: 'clear',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Metallic / Silver ──────────────────────────────────
@@ -178,8 +160,6 @@
     material: 'metallic',
     text: 'black',
     background: 'silver',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 
   // ─── 12 mm — Iron-on Fabric / White ─────────────────────────────
@@ -196,7 +176,5 @@
     material: 'iron-on-fabric',
     text: 'black',
     background: 'white',
-    tapeWidthMm: 12,
-    printableDots: 30,
   },
 ]

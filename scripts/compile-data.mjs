@@ -20,8 +20,7 @@
 //
 //   - DRIVER = 'letratag', KNOWN_PROTOCOLS = {'letratag-bt'}.
 //   - USB block validation removed; bluetooth-gatt block validated.
-//   - Per-media validation tightened to the LT 12 mm / 30 dot
-//     invariants.
+//   - Per-media validation tightened to the LT 12 mm invariant.
 
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -260,8 +259,6 @@ function loadMedia() {
     if (typeof m?.background !== 'string' || m.background.length === 0) {
       fail(`media[${i}]: background must be a non-empty string`);
     }
-    if (m?.tapeWidthMm !== 12) fail(`media[${i}]: tapeWidthMm must be 12`);
-    if (m?.printableDots !== 30) fail(`media[${i}]: printableDots must be 30`);
     if (!Array.isArray(m?.targetModels) || !m.targetModels.includes('letratag')) {
       fail(`media[${i}]: targetModels must include 'letratag'`);
     }

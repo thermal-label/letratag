@@ -169,7 +169,9 @@ Concrete code changes:
 DECISIONS.md updates:
 
 - **D3** rewritten — encoder follows the observed wire format, not ysfchn's encoder.
-- **D5** added — media detection IS available via advertising data.
+- **D5** rewritten — the assumed BLE advertising-data telemetry was
+  phantom; the post-print `[1B 52 code]` notification is the only
+  status source.
 - **D6** added — post-print status enum 1–7 carried from ysfchn,
   flagged as unconfirmed by direct observation pending hardware
   reports.
@@ -178,7 +180,7 @@ DECISIONS.md updates:
 
 ## Implementation decisions / divergences
 
-These are choices made by Claude during build-out where the plan was
+These are choices made during build-out where the plan was
 ambiguous or where a small course-correction happened. Each entry
 explains the WHY so a human reviewer can flip it.
 
