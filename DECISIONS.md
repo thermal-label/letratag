@@ -1,7 +1,8 @@
 # Decisions
 
 Phase-1 settled decisions only. Phase-2 questions (Node BLE, replay
-CLI, the broader LetraTag-family registry) live in PLAN-2.md.
+CLI, the broader LetraTag-family registry) are deferred to a later
+phase.
 
 ## D1 — BLE-only device; Phase 1 is web-only; Node deferred
 
