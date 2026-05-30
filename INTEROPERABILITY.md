@@ -14,10 +14,8 @@ under [`docs/protocol/`](./docs/protocol/) describe:
   primary BLE service. The driver emits the same byte sequences
   the printer's own firmware consumes on the wire.
 - The 3-byte status notification the printer returns on its reply
-  characteristic, and the 3-byte advertising-data manufacturer
-  payload it broadcasts continuously (cassette ID, battery, error
-  flags) — both readable on the wire without any host-side
-  cooperation.
+  characteristic after each print job — readable on the wire without
+  any host-side cooperation.
 - The GATT topology (one primary service, three characteristics,
   UUID-prefix matching) used to locate the printer and its
   characteristics.
@@ -35,22 +33,10 @@ The byte-level claims on the protocol pages are anchored on:
     number of details. The disagreements were resolved by
     on-the-wire observation, not by preferring one author over
     the other.
-- **Interoperability analysis of the official LetraTag Connect
-  Android application** — limited to the byte sequences the
-  application emits over BLE and the layout of the advertising-data
-  it consumes. The application's source was not redistributed; only
-  the unprotectable wire-format facts (opcode bytes, header layout,
-  chunking strategy, bit-packing order, advertising-data bit layout)
-  are reproduced here. This corresponds to the use of
-  decompilation expressly authorised under EU Directive 2009/24/EC
-  Article 6 for the purpose of achieving interoperability of an
-  independently-created program.
 - **Observed wire output** captured between a host and a paired
   printer. BLE GATT writes and notifications on the LT-200B are
   unencrypted; capture is routine via Android's "HCI snoop log"
   developer option, `btmon`, or Wireshark with the BlueZ plugin.
-  Advertising-data broadcasts are observable with a passive scan
-  (no pairing required).
 
 The driver does **not** redistribute the printer's firmware, the
 mobile app, or any vendor binary. It does not include keys,

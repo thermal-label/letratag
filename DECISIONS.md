@@ -54,26 +54,26 @@ substituting the prefix on the matched service tail. The official
 app does the same via its `setDeviceUUID()` helper, which replaces
 a literal placeholder in each of the four UUIDs at connect time.
 
-## D5 — Media detection is available via BLE advertising data
+## D5 — No BLE telemetry; the post-print notification is the only status source
 
-The LT-200B continuously broadcasts a 3-byte payload in its BLE
-advertising-data manufacturer field. The payload encodes
-`cassetteId` (1=6mm, 2=9mm, 3=12mm, 4=19mm, 5=24mm), `busyLocked`,
-`batteryLevel` (0..3), `chargingIndicator`, and four error flags
-(tape jam, cutter jam, battery too low, battery low).
+A PLAN-1-era revision assumed the LT-200B continuously broadcasts a
+3-byte advertising-data manufacturer payload (`cassetteId`,
+`batteryLevel`, charging, tape/cutter/battery error flags) that the
+driver could parse via `parseAdvertisingStatus()` and fold into
+`getStatus()`. **On-the-wire investigation found no such broadcast.**
+The LT-200B exposes no battery, cassette, or live-status telemetry
+over BLE — the advertising-status code was phantom and was removed.
 
-This **revises** an earlier PLAN-1 working assumption that the
-LT-200B has no media-detection signal. The driver:
+The driver's only status source is the 3-byte `[1B 52 code]`
+notification the printer emits on its reply characteristic after
+each print job (`packages/core/src/status.ts` → `parseStatus`).
+`LetraTagPrinter.getStatus()` returns the last-known post-print
+status (a default empty status before the first print); there is no
+out-of-job status channel.
 
-- Parses the advertising-data via `parseAdvertisingStatus()` in
-  `packages/core/src/status.ts`.
-- Folds the most recent snapshot into `LetraTagPrinter.getStatus()`.
-- The debug harness shows the full decoded state in a dedicated
-  panel and includes it in diagnostics exports.
-
-Status code 7 ("CASSETTE_MISSING") on the post-print RX
-notification is still treated as unreliable — prefer the broadcast
-`cassetteId` for cassette-presence checks.
+Status code 7 ("CASSETTE_MISSING") on the post-print notification is
+documented but never observed in practice; do not rely on it for
+cassette-presence detection.
 
 ## D6 — Post-print status enum (codes 1–7) carried from ysfchn
 
