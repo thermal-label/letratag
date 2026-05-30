@@ -10,11 +10,8 @@ import type { LetraTagPrintOptions, __DebugEncoderOverrides } from './types.js';
 /**
  * Wire-format encoder for the LetraTag LT-200B BLE print protocol.
  *
- * Reference: docs/protocol/letratag-bt.md. Sources, scope, and
- * legal posture are documented in INTEROPERABILITY.md at the repo
- * root. Every byte choice in this file is anchored on observed
- * wire output and the prior public reverse-engineering work cited
- * there; see the protocol page for confidence caveats.
+ * Wire format, sources, and confidence caveats: see
+ * docs/protocol/letratag-bt.md and INTEROPERABILITY.md.
  */
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -23,23 +20,16 @@ import type { LetraTagPrintOptions, __DebugEncoderOverrides } from './types.js';
 export const MAGIC: readonly [number, number] = [0x12, 0x34];
 
 /**
- * Protocol-level upper bound on body bytes per BLE write. Used as
- * the ceiling when no `mtu` is provided to `chunkPayload`; effective
- * chunk size is `min(BODY_CHUNK, mtu - 1)`.
+ * Protocol-level upper bound on body bytes per BLE write; ceiling
+ * when no `mtu` is provided to `chunkPayload`. Effective chunk size
+ * is `min(BODY_CHUNK, mtu - 1)` — see docs/protocol/letratag-bt.md.
  *
- * 500 is the value documented in vendor-protocol notes — but on
- * real BLE links this size exceeds typical MTU (247 ATT, 244-byte
- * payload), and Chrome doesn't auto-fragment `writeValueWithoutResponse`
- * writes beyond the negotiated link MTU on every platform.
- * Bench-confirmed 2026-05-10: 500-byte writes fail on the first
- * chunk of a multi-chunk job with "GATT operation failed for unknown
- * reason"; 244-byte writes succeed reliably.
- *
- * Always pass the registry's `bluetooth-gatt.mtu` through the
- * encoder context (`encodeLabel(bitmap, opts, overrides, { mtu })`)
- * for multi-chunk-safe behaviour. The registry value should track
- * the BLE link MTU you expect to negotiate (247 = conservative
- * default; some stacks negotiate higher).
+ * 500 exceeds typical BLE link MTU and Chrome won't auto-fragment
+ * write-without-response past the negotiated MTU. Bench-confirmed
+ * 2026-05-10: 500-byte writes fail on the first chunk of a
+ * multi-chunk job; 244-byte writes succeed. Always pass the
+ * registry's `bluetooth-gatt.mtu` via the encoder context for
+ * multi-chunk-safe behaviour.
  */
 export const BODY_CHUNK = 500;
 
@@ -57,18 +47,10 @@ export const PROTOCOL_HEAD_FRAME = 32;
  */
 export const PRINTABLE_DOTS = 30;
 
-/**
- * Hardcoded job ID prefix on the START directive — `9A 02 00 00`
- * appears on every observed job, with no apparent
- * queue/generation-counter semantics.
- */
+/** Fixed job-ID tail on START — emit verbatim; not a queue handle. */
 const START_JOB_ID: readonly number[] = [154, 2, 0, 0];
 
-/**
- * Chunk-index quirk — the index that would be `27` is bumped to
- * `28`, and every index after it is shifted by one. Part of the
- * observed wire format on every captured job.
- */
+/** Index 27 is skipped on the wire; every later index shifts by one. */
 const CHUNK_INDEX_QUIRK_THRESHOLD = 27;
 
 // ─── Directive opcodes ──────────────────────────────────────────────
@@ -119,12 +101,8 @@ export function buildCut(command: number): Uint8Array {
 
 /**
  * `[0x1B, 0x4D, mediaId, 0x00, 0x00, 0x00]` — set cassette type.
- * 6 bytes total; the trailing three zeros are part of the observed
- * wire format.
- *
- * Not emitted in the normal print flow. Available for the
- * stand-alone "set cassette type" payload that goes over the
- * `printShortCommandUUID` characteristic.
+ * Not emitted in the normal print flow; used by the stand-alone
+ * set-cassette-type payload. The trailing three zeros are required.
  */
 export function buildMediaType(mediaId: number): Uint8Array {
   return new Uint8Array([0x1b, DIR_MEDIA_TYPE, mediaId & 0xff, 0x00, 0x00, 0x00]);
@@ -158,42 +136,22 @@ function writeU32LE(buf: Uint8Array, offset: number, value: number): void {
 
 /**
  * Encode a head-aligned bitmap into the column-major 4-bytes-per-feed
- * stream the LT-200B expects.
+ * stream the LT-200B expects. Bit packing: see
+ * docs/protocol/letratag-bt.md § Image encoding.
  *
  * **Input contract** — the bitmap is head-aligned: `widthPx` is the
  * head-perpendicular dimension (along the tape, the feed axis);
- * `heightPx` is across the head. The driver layer is responsible
- * for producing this orientation.
+ * `heightPx` is across the head. The driver layer produces this
+ * orientation.
  *
- * **Algorithm** (`getBytesFromBitmapRaster` + `swapBits` in the
- * official app):
- *   - For each feed column, take the column's `heightPx` head-row
- *     bits and pack them MSB-first into 4 bytes (8 bits per byte,
- *     bit 7 = first row of the group).
- *   - Reverse the byte order within the column:
- *     `[b0, b1, b2, b3] → [b3, b2, b1, b0]`.
+ * No `y+1` skew: pixel `(0, 0)` lands in bit 7 of byte 3 → first
+ * 4 bytes = `00 00 00 80`. Source bitmaps shorter than the 32-row
+ * frame are centered by zero-padding top and bottom.
  *
- * **Net effect** for a pixel at `(x_feed, y_head)` (with `y_head`
- * in `[0, 31]`):
- *
- *     byte_index = 3 - floor(y_head / 8)
- *     bit_index  = 7 - (y_head % 8)
- *
- * No `y+1` skew. Pixel `(0, 0)` lands in bit 7 of byte 3 → first
- * 4 bytes = `00 00 00 80`.
- *
- * If `heightPx < PROTOCOL_HEAD_FRAME` (32), the column is centered
- * within the 32-row frame by padding `floor((32 - h) / 2)` zero
- * rows on top and `32 - h - top` zero rows on the bottom — the
- * placement that matches the observed wire format.
- *
- * **Cross-feed dead-zone shift** — when `crossFeed.left` /
- * `crossFeed.right` are non-zero (head rows the chassis cannot
- * print), the centering shifts so the bitmap rows land inside the
- * reachable subrange `[left, 32 - right)`. With both zero (today's
- * default until the maintainer benches a measurement), the math
- * reduces to the centering formula above and output bytes are
- * unchanged.
+ * **Cross-feed dead-zone shift** — non-zero `crossFeed.left/right`
+ * (unprintable head rows) shift the centering into the reachable
+ * subrange `[left, 32 - right)`. With both zero (today's default
+ * until a bench measurement), output bytes are unchanged.
  */
 export function encodeBitmap(
   bitmap: LabelBitmap,
@@ -238,11 +196,8 @@ function isPixelOn(bitmap: LabelBitmap, x: number, y: number): boolean {
 // ─── Header / checksum ──────────────────────────────────────────────
 
 /**
- * 9-byte header. Layout:
- *
- *   `[0xFF, 0xF0, 0x12, 0x34, ...u32le(payloadLength), checksum]`
- *
- * `checksum` is the sum of the preceding 8 bytes mod 256.
+ * 9-byte job header `[0xFF, 0xF0, 0x12, 0x34, u32le(payloadLength),
+ * checksum]`; `checksum` = sum of the preceding 8 bytes mod 256.
  */
 export function buildHeader(payloadLength: number): Uint8Array {
   const header = new Uint8Array(9);
@@ -270,24 +225,15 @@ export interface PrintPayloadOptions {
    */
   cut?: boolean;
   /**
-   * Engine context — used to resolve the chassis dead-zone via
-   * `getPrintableArea(engine, media)` from `@thermal-label/contracts`.
-   * When omitted (or when the engine has no `printableArea` set),
-   * the encoder pads zero rows / columns and output is byte-identical
-   * to pre-Phase-2.
-   *
-   * Per Plan 08 §6 the LT-200B's `forcedTrailingFeedMm` stays unread
-   * here: the firmware enacts trailing feed via `CUT 0x30`, and the
-   * magnitude is unmeasured. Future bench work populates the engine
-   * field and a follow-up commit consumes it.
+   * Engine context — resolves the chassis dead-zone via
+   * `getPrintableArea(engine, media)`. When omitted (or with no
+   * `printableArea` set) output is byte-identical to pre-Phase-2.
    */
   engine?: PrintEngine;
   /**
-   * Resolved media — passed alongside `engine` so `getPrintableArea`
-   * can apply per-roll overrides if any media descriptor ever ships
-   * `printableHorizontalOffsetMm` / `printableVerticalOffsetMm`. None
-   * do today on the LT-200B path; included for shape-parity with the
-   * sister drivers.
+   * Resolved media, passed alongside `engine` for per-roll
+   * `getPrintableArea` overrides. No LT-200B media ships such
+   * overrides today; present for shape-parity with sister drivers.
    */
   media?: MediaDescriptor;
 }
@@ -322,29 +268,20 @@ function resolveDeadZoneDots(
  * `START + [MEDIA_TYPE] + NUMBER_OF_COPIES + PRINT_DATA + CUT +
  * STATUS + END`.
  *
- * `MEDIA_TYPE` is included only when
- * `overrides.mediaTypeByte` is defined — Phase 1 default omits it,
- * matching the observed print flow. The debug harness exposes the
- * override to poke at C5.
+ * `MEDIA_TYPE` is emitted only when `overrides.mediaTypeByte` is
+ * defined; the default print flow omits it.
  */
 export function buildPrintPayload(
   bitmap: LabelBitmap,
   options?: PrintPayloadOptions,
   overrides?: __DebugEncoderOverrides,
 ): Uint8Array {
-  // Resolve the chassis dead-zone for this engine/media. With no
-  // engine (or no `printableArea` populated), every edge is zero
-  // and the encoder behaves exactly as Phase-1.
   const deadZone = resolveDeadZoneDots(options?.engine, options?.media);
 
-  // Cross-feed dead-zone shifts the head-row centering inside
-  // `encodeBitmap`. Leading dead-zone prepends blank feed columns
-  // (4 bytes per column, all-zero) before the encoded bitmap so the
-  // first printable feed-step lands past the head-to-cutter gap.
-  // Trailing feed columns get appended after the bitmap so the
-  // printed area advances past the cutter and becomes visible —
-  // bench-confirmed on LT-200B (CUT 0x30 alone doesn't advance
-  // enough tape; engine.forcedTrailingFeedMm carries the magnitude).
+  // Leading dead-zone prepends blank feed columns; trailing feed
+  // columns are appended so the printed area clears the cutter —
+  // bench-confirmed: CUT 0x30 alone doesn't advance enough tape;
+  // engine.forcedTrailingFeedMm carries the magnitude.
   const bodyImage = encodeBitmap(bitmap, { left: deadZone.left, right: deadZone.right });
   const leadingPadBytes = 4 * deadZone.leading;
   const trailingFeedDots = options?.engine
@@ -390,27 +327,15 @@ function concat(parts: readonly Uint8Array[]): Uint8Array {
  *
  * Output:
  *   - First entry: 9-byte header.
- *   - Subsequent entries (print path): `[chunkIndex, ...body[i*N..]]`
- *     where N = effective chunk size. Final chunk additionally
+ *   - Print path: `[chunkIndex, ...body]` per write; final chunk
  *     appends MAGIC `[0x12, 0x34]`.
- *   - Non-print path (`isPrint = false`): single body write with
- *     leading zero index (used by the stand-alone set-cassette-type
- *     payload that goes over `printShortCommandUUID`).
+ *   - Non-print path (`isPrint = false`): single body write with a
+ *     leading zero index (the stand-alone set-cassette-type payload).
  *
- * Effective chunk size: `min(BODY_CHUNK, mtu - 1)` when `mtu` is
- * provided (via the registry's `bluetooth-gatt.mtu`). The −1 reserves
- * one byte for the protocol-level chunk-index prefix that fronts each
- * BLE write. When `mtu` is omitted the encoder falls back to
- * `BODY_CHUNK` — which matches single-chunk job behaviour but will
- * blow up multi-chunk jobs on stacks that don't auto-fragment writes
- * exceeding negotiated link MTU. Always pass `mtu` for correctness
- * on multi-chunk content.
- *
- * Chunk indices are sequential 0, 1, 2, … with the wire-format
- * quirk that index 27 is skipped — the chunk that would have
- * received index 27 gets index 28, and every chunk after it shifts
- * by one. Realistic LT labels never approach 27 chunks
- * (~13.5 KiB body); the quirk is preserved for forward-compat.
+ * Effective chunk size is `min(BODY_CHUNK, mtu - 1)`; always pass
+ * `mtu` for multi-chunk correctness (omitting it blows up multi-chunk
+ * jobs on stacks that don't auto-fragment). The index-27 skip quirk
+ * applies. See docs/protocol/letratag-bt.md § Chunking.
  */
 export function chunkPayload(
   payload: Uint8Array,
@@ -428,8 +353,7 @@ export function chunkPayload(
     return writes;
   }
 
-  // Reserve one byte for the chunk-index prefix; cap by both the
-  // protocol max (BODY_CHUNK) and the BLE link MTU when known.
+  // -1 reserves the chunk-index prefix byte.
   const maxBody =
     options?.mtu !== undefined ? Math.max(1, Math.min(BODY_CHUNK, options.mtu - 1)) : BODY_CHUNK;
   const chunkCount = Math.max(1, Math.ceil(payload.length / maxBody));
@@ -463,16 +387,12 @@ export function chunkPayload(
  * Encode a complete LetraTag print job into the ordered list of BLE
  * writes. The transport calls `write()` with each entry in turn.
  *
- * The driver layer is responsible for translating `copies > 1` into
- * the correct sequence of jobs — typically that means emitting
- * `copies - 1` jobs with `cut: false` followed by one final job
- * with `cut: true`. `encodeLabel` itself produces a single job at a
- * time so callers retain control over per-copy status reads.
+ * Produces a single job per call so callers keep per-copy status
+ * reads; the driver layer sequences `copies > 1` itself (typically
+ * `copies - 1` jobs with `cut: false` then one with `cut: true`).
  *
- * Pass `engine` (and optionally `media`) so the encoder can apply
- * the chassis dead-zone correction via `getPrintableArea` from
- * `@thermal-label/contracts`. When omitted, output is byte-identical
- * to Phase-1 — the path used by every test in this package.
+ * Pass `engine` (and optionally `media`) to apply the chassis
+ * dead-zone correction; omitting it yields byte-identical output.
  */
 export function encodeLabel(
   bitmap: LabelBitmap,

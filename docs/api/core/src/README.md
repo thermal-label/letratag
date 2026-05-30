@@ -18,7 +18,7 @@
 
 | Variable | Description |
 | ------ | ------ |
-| [BODY\_CHUNK](variables/BODY_CHUNK.md) | Protocol-level upper bound on body bytes per BLE write. Used as the ceiling when no `mtu` is provided to `chunkPayload`; effective chunk size is `min(BODY_CHUNK, mtu - 1)`. |
+| [BODY\_CHUNK](variables/BODY_CHUNK.md) | Protocol-level upper bound on body bytes per BLE write; ceiling when no `mtu` is provided to `chunkPayload`. Effective chunk size is `min(BODY_CHUNK, mtu - 1)` — see docs/protocol/letratag-bt.md. |
 | [CUT\_AT\_END](variables/CUT_AT_END.md) | `CUT` command byte for "cut at the end of this copy". |
 | [CUT\_SUPPRESS](variables/CUT_SUPPRESS.md) | `CUT` command byte for "suppress cut (intermediate copy)". |
 | [DEFAULT\_MEDIA](variables/DEFAULT_MEDIA.md) | - |
@@ -44,15 +44,15 @@
 | Function | Description |
 | ------ | ------ |
 | [buildCut](functions/buildCut.md) | `[0x1B, 0x70, command]` — cut directive. |
-| [buildHeader](functions/buildHeader.md) | 9-byte header. Layout: |
-| [buildMediaType](functions/buildMediaType.md) | `[0x1B, 0x4D, mediaId, 0x00, 0x00, 0x00]` — set cassette type. 6 bytes total; the trailing three zeros are part of the observed wire format. |
+| [buildHeader](functions/buildHeader.md) | 9-byte job header `[0xFF, 0xF0, 0x12, 0x34, u32le(payloadLength), checksum]`; `checksum` = sum of the preceding 8 bytes mod 256. |
+| [buildMediaType](functions/buildMediaType.md) | `[0x1B, 0x4D, mediaId, 0x00, 0x00, 0x00]` — set cassette type. Not emitted in the normal print flow; used by the stand-alone set-cassette-type payload. The trailing three zeros are required. |
 | [buildNumberOfCopies](functions/buildNumberOfCopies.md) | `[0x1B, 0x23, copies]` — number of copies for this job. |
 | [buildPrintData](functions/buildPrintData.md) | `[0x1B, 0x44, 0x81, 0x02, ...u32le(width), ...u32le(height), ...image]` |
 | [buildPrintPayload](functions/buildPrintPayload.md) | Build the print payload (everything after the 9-byte header): `START + [MEDIA_TYPE] + NUMBER_OF_COPIES + PRINT_DATA + CUT + STATUS + END`. |
 | [chunkPayload](functions/chunkPayload.md) | Slice an assembled payload into the ordered list of BLE writes. |
 | [createPreviewOffline](functions/createPreviewOffline.md) | Generate an offline preview without a live printer connection. |
-| [encodeBitmap](functions/encodeBitmap.md) | Encode a head-aligned bitmap into the column-major 4-bytes-per-feed stream the LT-200B expects. |
+| [encodeBitmap](functions/encodeBitmap.md) | Encode a head-aligned bitmap into the column-major 4-bytes-per-feed stream the LT-200B expects. Bit packing: see docs/protocol/letratag-bt.md § Image encoding. |
 | [encodeLabel](functions/encodeLabel.md) | Encode a complete LetraTag print job into the ordered list of BLE writes. The transport calls `write()` with each entry in turn. |
 | [encodeSetCassetteType](functions/encodeSetCassetteType.md) | Build the stand-alone `MEDIA_TYPE`-only write list. Used by the driver's `setCassetteType()` path (writes to the `printShortCommandUUID` characteristic). |
 | [findMediaBySku](functions/findMediaBySku.md) | Find a media entry by vendor SKU. LT cassettes ship under many regional part numbers (US 91XXX vs EU S07XXXXX); this helper does the lookup against `MediaDescriptor.skus`. |
-| [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
+| [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame `[0x1B, 0x52, code]` into a `PrinterStatus`. Code enum and confidence caveats: see docs/protocol/letratag-bt.md § `ESC A`. Codes 1/5 are aliased to 0/2 respectively. |

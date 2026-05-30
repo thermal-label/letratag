@@ -1,13 +1,7 @@
 /**
- * Internal debug subpath. Exposes the encoder with the
- * `__DebugEncoderOverrides` knob accepted. Used by
- * `@thermal-label/letratag-debug` to poke `MEDIA_TYPE` byte values
- * during the verification harness flow.
- *
- * The earlier axisOrder / bitPacking / chunkIndexQuirk knobs have
- * been removed — the official-app source resolved each in a single
- * direction, and the encoder now implements that direction
- * unconditionally.
+ * Internal debug subpath — exposes the encoder accepting
+ * `__DebugEncoderOverrides`. Used by `@thermal-label/letratag-debug`
+ * to poke `MEDIA_TYPE` byte values in the verification harness.
  *
  * Not stable. Not part of the public API.
  */

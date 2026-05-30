@@ -12,7 +12,7 @@
 | ------ | ------ |
 | [LetraTagMedia](interfaces/LetraTagMedia.md) | DYMO LetraTag media descriptor. |
 | [LetraTagPrintOptions](interfaces/LetraTagPrintOptions.md) | Public LetraTag print options. |
-| [PairResult](interfaces/PairResult.md) | Result of a successful pairing — the printer adapter plus the BLE plumbing the debug harness needs (observed full UUIDs, link MTU, raw `BluetoothDevice` for diagnostics export). |
+| [PairResult](interfaces/PairResult.md) | Result of a successful pairing — the printer adapter plus the BLE plumbing the debug harness needs (observed UUIDs, link MTU, raw `BluetoothDevice`). |
 | [RequestPrinterOptions](interfaces/RequestPrinterOptions.md) | - |
 
 ## Type Aliases
@@ -40,6 +40,6 @@
 | [devicesForTransport](functions/devicesForTransport.md) | Filter the registry to entries declaring `transport`. Used to populate `DeviceIdentificationRequiredError.candidates` from the harness shell. |
 | [encodeLabel](functions/encodeLabel.md) | Encode a complete LetraTag print job into the ordered list of BLE writes. The transport calls `write()` with each entry in turn. |
 | [findMediaBySku](functions/findMediaBySku.md) | Find a media entry by vendor SKU. LT cassettes ship under many regional part numbers (US 91XXX vs EU S07XXXXX); this helper does the lookup against `MediaDescriptor.skus`. |
-| [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame from the printer. |
-| [~~requestPrinter~~](functions/requestPrinter.md) | Open the browser BLE picker, pair with an LT-200B, and resolve the GATT service / characteristics. |
-| [requestPrinters](functions/requestPrinters.md) | Unified browser-picker factory. |
+| [parseStatus](functions/parseStatus.md) | Parse a 3-byte status notification frame `[0x1B, 0x52, code]` into a `PrinterStatus`. Code enum and confidence caveats: see docs/protocol/letratag-bt.md § `ESC A`. Codes 1/5 are aliased to 0/2 respectively. |
+| [~~requestPrinter~~](functions/requestPrinter.md) | Open the browser BLE picker, pair with an LT-200B, and resolve the GATT service / characteristics. Returns the printer adapter plus diagnostic plumbing (observed UUIDs, best-effort link MTU). |
+| [requestPrinters](functions/requestPrinters.md) | Unified browser-picker factory. Returns a 1-key `PrinterAdapterMap` keyed by the device's primary engine role. |

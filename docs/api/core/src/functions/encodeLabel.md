@@ -15,16 +15,12 @@ function encodeLabel(
 Encode a complete LetraTag print job into the ordered list of BLE
 writes. The transport calls `write()` with each entry in turn.
 
-The driver layer is responsible for translating `copies > 1` into
-the correct sequence of jobs — typically that means emitting
-`copies - 1` jobs with `cut: false` followed by one final job
-with `cut: true`. `encodeLabel` itself produces a single job at a
-time so callers retain control over per-copy status reads.
+Produces a single job per call so callers keep per-copy status
+reads; the driver layer sequences `copies > 1` itself (typically
+`copies - 1` jobs with `cut: false` then one with `cut: true`).
 
-Pass `engine` (and optionally `media`) so the encoder can apply
-the chassis dead-zone correction via `getPrintableArea` from
-`@thermal-label/contracts`. When omitted, output is byte-identical
-to Phase-1 — the path used by every test in this package.
+Pass `engine` (and optionally `media`) to apply the chassis
+dead-zone correction; omitting it yields byte-identical output.
 
 ## Parameters
 

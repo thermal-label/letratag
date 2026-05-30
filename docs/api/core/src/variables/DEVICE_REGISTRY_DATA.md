@@ -16,9 +16,9 @@ const DEVICE_REGISTRY_DATA: {
      key: "LT_200B";
      name: "LetraTag LT-200B";
      support: {
-        status: "untested";
+        status: "verified";
      };
-     supportStatus: "unverified";
+     supportStatus: "verified";
      transports: {
         bluetooth-gatt: {
            mtu: 247;
@@ -43,6 +43,6 @@ module imported here.
 
 | Name | Type | Default value |
 | ------ | ------ | ------ |
-| <a id="property-devices"></a> `devices` | readonly \[\{ `engines`: readonly \[\{ `dpi`: `200`; `forcedTrailingFeedMm`: `6`; `headDots`: `30`; `mediaCompatibility`: readonly \[`"letratag"`\]; `protocol`: `"letratag-bt"`; `role`: `"primary"`; \}\]; `family`: `"letratag"`; `hardwareQuirks`: `"Lid must be closed and batteries adequately charged before the printer registers a print. Status code 7 (no cassette) is documented but never observed in practice; do not use it for cassette presence detection."`; `key`: `"LT_200B"`; `name`: `"LetraTag LT-200B"`; `support`: \{ `status`: `"untested"`; \}; `supportStatus`: `"unverified"`; `transports`: \{ `bluetooth-gatt`: \{ `mtu`: `247`; `namePrefix`: `"Letratag "`; `rxCharacteristicUuid`: `"be3dd652-2b3d-42f1-99c1-f0f749dd0678"`; `serviceUuid`: `"be3dd650-2b3d-42f1-99c1-f0f749dd0678"`; `txCharacteristicUuid`: `"be3dd651-2b3d-42f1-99c1-f0f749dd0678"`; \}; \}; \}\] | - |
+| <a id="property-devices"></a> `devices` | readonly \[\{ `engines`: readonly \[\{ `dpi`: `200`; `forcedTrailingFeedMm`: `6`; `headDots`: `30`; `mediaCompatibility`: readonly \[`"letratag"`\]; `protocol`: `"letratag-bt"`; `role`: `"primary"`; \}\]; `family`: `"letratag"`; `hardwareQuirks`: `"Lid must be closed and batteries adequately charged before the printer registers a print. Status code 7 (no cassette) is documented but never observed in practice; do not use it for cassette presence detection."`; `key`: `"LT_200B"`; `name`: `"LetraTag LT-200B"`; `support`: \{ `status`: `"verified"`; \}; `supportStatus`: `"verified"`; `transports`: \{ `bluetooth-gatt`: \{ `mtu`: `247`; `namePrefix`: `"Letratag "`; `rxCharacteristicUuid`: `"be3dd652-2b3d-42f1-99c1-f0f749dd0678"`; `serviceUuid`: `"be3dd650-2b3d-42f1-99c1-f0f749dd0678"`; `txCharacteristicUuid`: `"be3dd651-2b3d-42f1-99c1-f0f749dd0678"`; \}; \}; \}\] | - |
 | <a id="property-driver"></a> `driver` | `"letratag"` | `"letratag"` |
 | <a id="property-schemaversion"></a> `schemaVersion` | `1` | `1` |

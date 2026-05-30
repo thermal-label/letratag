@@ -20,15 +20,10 @@ export type LetraTagMaterial =
 /**
  * DYMO LetraTag media descriptor.
  *
- * Extends the contracts base `MediaDescriptor`. Tape is always
- * continuous — `heightMm` is omitted. Every LT cassette is 12 mm
- * wide; that width lives in the spec'd `widthMm` (the only width
- * the LT-200B chassis accepts).
- *
- * Printable head height is a chassis fact, not a per-cassette one,
- * so it lives on the engine (`PrintEngine.headDots`) and the
- * `PRINTABLE_DOTS` constant in `./protocol.ts` — not on this media
- * type.
+ * Tape is always continuous (`heightMm` omitted). Every LT cassette
+ * is 12 mm wide — the only width the chassis accepts — carried in
+ * `widthMm`. Printable head height is a chassis fact, so it lives on
+ * the engine / `PRINTABLE_DOTS`, not here.
  */
 export interface LetraTagMedia extends MediaDescriptor {
   type: 'tape';
@@ -60,25 +55,15 @@ export interface LetraTagPrintOptions extends PrintOptions {
 }
 
 /**
- * Internal encoder overrides. Not re-exported from `index.ts` —
- * reachable only through the `./debug` subpath. Used by the
- * verification harness to poke at the only remaining unknown:
- * `mediaTypeByte` (the cassetteId enum is documented in the
- * protocol page but the host normally does not emit `MEDIA_TYPE`
- * on the print path).
- *
- * The earlier `axisOrder` / `bitPacking` / `chunkIndexQuirk` knobs
- * have been removed: on-the-wire observation resolved each of
- * those conflicts in a single direction, and the encoder now
- * implements that direction unconditionally.
+ * Internal encoder overrides — reachable only via the `./debug`
+ * subpath, not re-exported from `index.ts`. Used by the verification
+ * harness to poke the one remaining unknown, `mediaTypeByte` (the
+ * host normally omits `MEDIA_TYPE` on the print path).
  */
 export interface __DebugEncoderOverrides {
   /**
-   * When set, prepend a `MEDIA_TYPE` directive carrying this byte
-   * to the print payload. Default `undefined` (omit). The
-   * directive's wire form is 6 bytes
-   * (`[1B 4D byte 00 00 00]`); the trailing zero pad is part of the
-   * observed wire format.
+   * When set, prepend a `MEDIA_TYPE` directive carrying this byte to
+   * the print payload. Default `undefined` (omit).
    */
   mediaTypeByte?: number;
 }
