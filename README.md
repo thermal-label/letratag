@@ -49,8 +49,10 @@ matches the byte stream observed on the wire from a paired LT-200B
 — see [`docs/protocol/letratag-bt.md`](docs/protocol/letratag-bt.md)
 for the authoritative spec and
 [`INTEROPERABILITY.md`](INTEROPERABILITY.md) for the project's
-sources and legal posture. Hardware status for the LT-200B starts
-at `Untested` — see [HARDWARE.md](HARDWARE.md) and
+sources and legal posture. Current hardware status for the LT-200B
+is in the [Supported hardware](#supported-hardware) table below
+(generated from the device registry) and on the
+[hardware docs page](docs/hardware.md) — see also
 [DECISIONS.md](DECISIONS.md). Phase-2 items (replay CLI, hardware
 issue templates, Node BLE) live in [PLAN-2.md](PLAN-2.md).
 
@@ -75,11 +77,11 @@ settings used.
 ## Supported hardware
 
 <!-- HARDWARE_TABLE:START -->
-**1 devices** — 0 verified · 0 partial · 0 broken · 1 untested
+**1 devices** — 1 verified · 0 partial · 0 broken · 0 untested
 
 | Model | Key | USB PID | Transports | Status |
 | --- | --- | --- | --- | --- |
-| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | — | BT LE | ⏳ untested |
+| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | — | BT LE | ✅ verified |
 
 Click any model to open its detail page on the docs site, where engines, supported media, and verification reports live. The same data backs the [interactive cross-driver table](https://thermal-label.github.io/hardware/).
 <!-- HARDWARE_TABLE:END -->
