@@ -1,6 +1,6 @@
 {
   "name": "@thermal-label/letratag-web",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Web Bluetooth driver for the DYMO LetraTag LT-200B",
   "type": "module",
   "author": "Mannes Brak",
