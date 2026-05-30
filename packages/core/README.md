@@ -66,13 +66,11 @@ Full TypeDoc reference, getting-started guide, and the wire protocol:
 [thermal-label.github.io/letratag/core](https://thermal-label.github.io/letratag/core).
 
 <!-- HARDWARE_TABLE:START -->
+**1 devices** — 1 verified · 0 partial · 0 broken · 0 untested
 
-**1 devices** — 0 verified · 0 partial · 0 broken · 1 untested
-
-| Model                                                                         | Key       | USB PID | Transports | Status      |
-| ----------------------------------------------------------------------------- | --------- | ------- | ---------- | ----------- |
-| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | —       | BT LE      | ⏳ untested |
+| Model | Key | USB PID | Transports | Status |
+| --- | --- | --- | --- | --- |
+| [LetraTag LT-200B](https://thermal-label.github.io/hardware/letratag/lt-200b) | `LT_200B` | — | BT LE | ✅ verified |
 
 Click any model to open its detail page on the docs site, where engines, supported media, and verification reports live. The same data backs the [interactive cross-driver table](https://thermal-label.github.io/hardware/).
-
 <!-- HARDWARE_TABLE:END -->

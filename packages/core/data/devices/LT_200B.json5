@@ -88,5 +88,17 @@
     },
   ],
   hardwareQuirks: 'Lid must be closed and batteries adequately charged before the printer registers a print. Status code 7 (no cassette) is documented but never observed in practice; do not use it for cassette presence detection.',
-  support: { status: 'untested' },
+  support: { status: 'verified' },
+  verifications: {
+    'bluetooth-gatt': {
+      status: 'verified',
+      // #1 is the canonical report (Linux/Chromium 146, photo attached).
+      // The Android/Chromium 148 confirmation (#3) is a clean duplicate,
+      // closed against #1 and carried by GitHub's linked-issues panel — the
+      // second array slot is reserved for a *conflicting* corroboration
+      // (see contracts VerificationCell). lastReported reflects both.
+      issues: [1],
+      lastReported: '2026-05-30',
+    },
+  },
 }
